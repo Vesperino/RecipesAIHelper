@@ -29,8 +29,11 @@ class Program
 
         var databasePath = configuration["Settings:DatabasePath"] ?? "recipes.db";
 
-        var pagesPerChunk = int.TryParse(configuration["Settings:PagesPerChunk"], out var ppc) ? ppc : 10;
-        var overlapPages = int.TryParse(configuration["Settings:OverlapPages"], out var op) ? op : 1;
+        var pagesPerChunk = int.TryParse(configuration["Settings:PagesPerChunk"], out var ppc) ? ppc : 30;
+        var overlapPages = int.TryParse(configuration["Settings:OverlapPages"], out var op) ? op : 2;
+        var delayBetweenChunks = int.TryParse(configuration["Settings:DelayBetweenChunksMs"], out var delay) ? delay : 3000;
+        var checkDuplicates = bool.TryParse(configuration["Settings:CheckDuplicates"], out var checkDup) ? checkDup : true;
+        var recentRecipesContext = int.TryParse(configuration["Settings:RecentRecipesContext"], out var recentCtx) ? recentCtx : 10;
 
         if (string.IsNullOrEmpty(openAiApiKey) || openAiApiKey == "YOUR_OPENAI_API_KEY_HERE")
         {
@@ -43,6 +46,9 @@ class Program
         Console.WriteLine($"  - OpenAI Model: {openAiModel}");
         Console.WriteLine($"  - Pages per chunk: {pagesPerChunk}");
         Console.WriteLine($"  - Overlap pages: {overlapPages}");
+        Console.WriteLine($"  - Delay between chunks: {delayBetweenChunks}ms");
+        Console.WriteLine($"  - Check duplicates: {checkDuplicates}");
+        Console.WriteLine($"  - Recent recipes context: {recentRecipesContext}");
 
         // Initialize database
         using var db = new RecipeDbContext(databasePath);
@@ -65,7 +71,8 @@ class Program
             switch (choice)
             {
                 case "1":
-                    await ProcessPdfs(pdfDirectory, openAiApiKey, openAiModel, pagesPerChunk, overlapPages, db);
+                    await ProcessPdfs(pdfDirectory, openAiApiKey, openAiModel, pagesPerChunk, overlapPages,
+                        delayBetweenChunks, checkDuplicates, recentRecipesContext, db);
                     break;
                 case "2":
                     GetRandomMeals(db);
@@ -83,10 +90,17 @@ class Program
         }
     }
 
-    static async Task ProcessPdfs(string pdfDirectory, string apiKey, string modelName, int pagesPerChunk, int overlapPages, RecipeDbContext db)
+    static async Task ProcessPdfs(string pdfDirectory, string apiKey, string modelName, int pagesPerChunk,
+        int overlapPages, int delayMs, bool checkDuplicates, int recentRecipesContext, RecipeDbContext db)
     {
-        Console.WriteLine($"\nProcessing PDFs from: {pdfDirectory}");
-        Console.WriteLine($"Using chunked processing with {pagesPerChunk} pages per chunk and {overlapPages} page overlap\n");
+        Console.WriteLine($"\n{'=',-80}");
+        Console.WriteLine($"ROZPOCZĘCIE PRZETWARZANIA PDF");
+        Console.WriteLine($"{'=',-80}");
+        Console.WriteLine($"Folder: {pdfDirectory}");
+        Console.WriteLine($"Chunking: {pagesPerChunk} stron per chunk, {overlapPages} stron overlap");
+        Console.WriteLine($"Rate limiting: {delayMs}ms opóźnienia między chunkami");
+        Console.WriteLine($"Sprawdzanie duplikatów: {(checkDuplicates ? "TAK" : "NIE")}");
+        Console.WriteLine($"{'=',-80}\n");
 
         var pdfProcessor = new PdfProcessorService(pagesPerChunk, overlapPages);
         var openAiService = new OpenAIService(apiKey, modelName);
@@ -94,87 +108,193 @@ class Program
         try
         {
             var pdfFiles = pdfProcessor.GetAllPdfFiles(pdfDirectory);
-            Console.WriteLine($"Found {pdfFiles.Count} PDF files\n");
+            Console.WriteLine($"📄 Znaleziono {pdfFiles.Count} plików PDF\n");
 
             if (pdfFiles.Count == 0)
             {
-                Console.WriteLine("No PDF files found in the directory.");
+                Console.WriteLine("❌ Brak plików PDF w katalogu.");
                 return;
             }
 
             var totalRecipesExtracted = 0;
+            var totalRecipesSaved = 0;
+            var totalDuplicatesSkipped = 0;
             var totalChunksProcessed = 0;
+            var totalErrors = 0;
 
             foreach (var pdfFile in pdfFiles)
             {
-                Console.WriteLine($"\n{'=',-60}");
-                Console.WriteLine($"Processing: {Path.GetFileName(pdfFile)}");
-                Console.WriteLine($"{'=',-60}");
+                Console.WriteLine($"\n{'=',-80}");
+                Console.WriteLine($"📋 Przetwarzanie: {Path.GetFileName(pdfFile)}");
+                Console.WriteLine($"{'=',-80}");
+
+                var fileRecipesExtracted = 0;
+                var fileRecipesSaved = 0;
+                var fileDuplicatesSkipped = 0;
 
                 try
                 {
                     // Extract text from PDF in chunks with overlap
                     var chunks = pdfProcessor.ExtractTextInChunks(pdfFile);
+                    Console.WriteLine($"📊 PDF podzielony na {chunks.Count} chunków\n");
 
-                    foreach (var chunk in chunks)
+                    for (int i = 0; i < chunks.Count; i++)
                     {
+                        var chunk = chunks[i];
+
                         try
                         {
-                            // Send chunk to OpenAI for recipe extraction
-                            var recipes = await openAiService.ExtractRecipesFromChunk(chunk);
+                            Console.WriteLine($"[Chunk {chunk.ChunkNumber}/{chunks.Count}] Strony {chunk.StartPage}-{chunk.EndPage}");
+                            Console.WriteLine($"  Rozmiar tekstu: {chunk.Text.Length} znaków");
 
-                            // Save to database
+                            // Get recent recipes for context (to avoid duplicates)
+                            var recentRecipes = checkDuplicates
+                                ? db.GetRecentRecipes(recentRecipesContext)
+                                : null;
+
+                            if (recentRecipes != null && recentRecipes.Count > 0)
+                            {
+                                Console.WriteLine($"  Kontekst: {recentRecipes.Count} ostatnich przepisów w bazie");
+                            }
+
+                            // Send chunk to OpenAI for recipe extraction
+                            Console.WriteLine($"  ⏳ Wysyłanie do OpenAI ({modelName})...");
+                            var startTime = DateTime.Now;
+                            var recipes = await openAiService.ExtractRecipesFromChunk(chunk, recentRecipes);
+                            var processingTime = (DateTime.Now - startTime).TotalSeconds;
+
+                            Console.WriteLine($"  ✅ Otrzymano {recipes.Count} przepisów (czas: {processingTime:F1}s)");
+                            fileRecipesExtracted += recipes.Count;
+
+                            // Save to database with duplicate checking
                             foreach (var recipeData in recipes)
                             {
-                                var recipe = new Recipe
+                                try
                                 {
-                                    Name = recipeData.Name,
-                                    Description = recipeData.Description,
-                                    Ingredients = string.Join("\n", recipeData.Ingredients),
-                                    Instructions = recipeData.Instructions,
-                                    Calories = recipeData.Calories,
-                                    Protein = recipeData.Protein,
-                                    Carbohydrates = recipeData.Carbohydrates,
-                                    Fat = recipeData.Fat,
-                                    MealType = Enum.TryParse<MealType>(recipeData.MealType, out var mealType)
-                                        ? mealType
-                                        : MealType.Obiad,
-                                    CreatedAt = DateTime.Now
-                                };
+                                    // Validate recipe data
+                                    if (string.IsNullOrWhiteSpace(recipeData.Name))
+                                    {
+                                        Console.WriteLine($"    ⚠️  Pominięto przepis bez nazwy");
+                                        continue;
+                                    }
 
-                                db.InsertRecipe(recipe);
-                                Console.WriteLine($"  ✓ Saved: {recipe.Name} ({recipe.MealType})");
-                                totalRecipesExtracted++;
+                                    if (recipeData.Ingredients == null || recipeData.Ingredients.Count == 0)
+                                    {
+                                        Console.WriteLine($"    ⚠️  Pominięto '{recipeData.Name}' - brak składników");
+                                        continue;
+                                    }
+
+                                    // Check for duplicates
+                                    if (checkDuplicates)
+                                    {
+                                        if (db.RecipeExists(recipeData.Name))
+                                        {
+                                            Console.WriteLine($"    ⏭️  Pominięto '{recipeData.Name}' - duplikat (dokładne dopasowanie)");
+                                            fileDuplicatesSkipped++;
+                                            continue;
+                                        }
+
+                                        var similarRecipe = db.FindSimilarRecipe(recipeData.Name, 0.8);
+                                        if (similarRecipe != null)
+                                        {
+                                            Console.WriteLine($"    ⏭️  Pominięto '{recipeData.Name}' - podobny do '{similarRecipe.Name}'");
+                                            fileDuplicatesSkipped++;
+                                            continue;
+                                        }
+                                    }
+
+                                    // Save recipe
+                                    var recipe = new Recipe
+                                    {
+                                        Name = recipeData.Name,
+                                        Description = recipeData.Description,
+                                        Ingredients = string.Join("\n", recipeData.Ingredients),
+                                        Instructions = recipeData.Instructions,
+                                        Calories = recipeData.Calories,
+                                        Protein = recipeData.Protein,
+                                        Carbohydrates = recipeData.Carbohydrates,
+                                        Fat = recipeData.Fat,
+                                        MealType = Enum.TryParse<MealType>(recipeData.MealType, out var mealType)
+                                            ? mealType
+                                            : MealType.Obiad,
+                                        CreatedAt = DateTime.Now
+                                    };
+
+                                    db.InsertRecipe(recipe);
+                                    Console.WriteLine($"    ✅ Zapisano: {recipe.Name} ({recipe.MealType}) - {recipe.Calories} kcal");
+                                    fileRecipesSaved++;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"    ❌ Błąd zapisu '{recipeData.Name}': {ex.Message}");
+                                    totalErrors++;
+                                }
                             }
 
                             totalChunksProcessed++;
 
+                            // Progress indicator
+                            var progress = (float)(i + 1) / chunks.Count * 100;
+                            Console.WriteLine($"  📈 Postęp pliku: {progress:F0}%\n");
+
                             // Add delay between chunks to avoid rate limiting
-                            await Task.Delay(2000);
+                            if (i < chunks.Count - 1) // Don't delay after last chunk
+                            {
+                                Console.WriteLine($"  ⏸️  Oczekiwanie {delayMs}ms przed następnym chunkiem...\n");
+                                await Task.Delay(delayMs);
+                            }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"  ✗ Error processing chunk {chunk.ChunkNumber}: {ex.Message}");
+                            Console.WriteLine($"  ❌ Błąd przetwarzania chunku {chunk.ChunkNumber}: {ex.Message}");
+                            if (ex.InnerException != null)
+                            {
+                                Console.WriteLine($"     Szczegóły: {ex.InnerException.Message}");
+                            }
+                            totalErrors++;
                         }
                     }
 
-                    Console.WriteLine($"\nCompleted {Path.GetFileName(pdfFile)}: {chunks.Count} chunks processed");
+                    // File summary
+                    Console.WriteLine($"\n{'─',-80}");
+                    Console.WriteLine($"✅ Zakończono plik: {Path.GetFileName(pdfFile)}");
+                    Console.WriteLine($"   Chunków przetworzonych: {chunks.Count}");
+                    Console.WriteLine($"   Przepisów wyekstrahowanych: {fileRecipesExtracted}");
+                    Console.WriteLine($"   Przepisów zapisanych: {fileRecipesSaved}");
+                    Console.WriteLine($"   Duplikatów pominiętych: {fileDuplicatesSkipped}");
+                    Console.WriteLine($"{'─',-80}\n");
+
+                    totalRecipesExtracted += fileRecipesExtracted;
+                    totalRecipesSaved += fileRecipesSaved;
+                    totalDuplicatesSkipped += fileDuplicatesSkipped;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"✗ Error processing {Path.GetFileName(pdfFile)}: {ex.Message}");
+                    Console.WriteLine($"❌ Błąd przetwarzania pliku {Path.GetFileName(pdfFile)}: {ex.Message}");
+                    totalErrors++;
                 }
             }
 
-            Console.WriteLine($"\n{'=',-60}");
-            Console.WriteLine($"✓ Processing complete!");
-            Console.WriteLine($"Total chunks processed: {totalChunksProcessed}");
-            Console.WriteLine($"Total recipes extracted: {totalRecipesExtracted}");
-            Console.WriteLine($"{'=',-60}");
+            // Final summary
+            Console.WriteLine($"\n{'=',-80}");
+            Console.WriteLine($"🎉 PRZETWARZANIE ZAKOŃCZONE");
+            Console.WriteLine($"{'=',-80}");
+            Console.WriteLine($"📁 Plików przetworzonych: {pdfFiles.Count}");
+            Console.WriteLine($"📦 Chunków przetworzonych: {totalChunksProcessed}");
+            Console.WriteLine($"📋 Przepisów wyekstrahowanych: {totalRecipesExtracted}");
+            Console.WriteLine($"✅ Przepisów zapisanych: {totalRecipesSaved}");
+            Console.WriteLine($"⏭️  Duplikatów pominiętych: {totalDuplicatesSkipped}");
+            Console.WriteLine($"❌ Błędów: {totalErrors}");
+            Console.WriteLine($"📊 Obecna liczba przepisów w bazie: {db.GetRecipeCount()}");
+            Console.WriteLine($"{'=',-80}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            Console.WriteLine($"❌ Krytyczny błąd: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Szczegóły: {ex.InnerException.Message}");
+            }
         }
     }
 

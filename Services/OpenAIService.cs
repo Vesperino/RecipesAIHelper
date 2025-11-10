@@ -23,11 +23,21 @@ public class OpenAIService
         Console.WriteLine($"Using OpenAI model: {_modelName}");
     }
 
-    public async Task<List<RecipeExtractionResult>> ExtractRecipesFromChunk(PdfChunk chunk)
+    public async Task<List<RecipeExtractionResult>> ExtractRecipesFromChunk(PdfChunk chunk, List<Recipe>? recentRecipes = null)
     {
         try
         {
-            var systemPrompt = @"Jesteś ekspertem w analizie przepisów kulinarnych.
+            var recentRecipesContext = "";
+            if (recentRecipes != null && recentRecipes.Count > 0)
+            {
+                recentRecipesContext = "\n\nOSTATNIO DODANE PRZEPISY DO BAZY (NIE ekstraktuj ich ponownie!):\n";
+                foreach (var recipe in recentRecipes)
+                {
+                    recentRecipesContext += $"- {recipe.Name} ({recipe.MealType})\n";
+                }
+            }
+
+            var systemPrompt = $@"Jesteś ekspertem w analizie przepisów kulinarnych.
 
 WAŻNE ZASADY:
 1. Wyciągnij WSZYSTKIE kompletne przepisy z dostarczonego tekstu
@@ -36,6 +46,7 @@ WAŻNE ZASADY:
 4. Jeśli przepis jest rozłożony na dwie strony - połącz wszystkie informacje w jeden kompletny przepis
 5. Jeśli wartości odżywcze nie są podane wprost - oszacuj je na podstawie składników
 6. Kategorie: Sniadanie, Obiad, Kolacja, Deser, Napoj
+7. UNIKAJ DUPLIKATÓW - jeśli przepis już został dodany do bazy (lista poniżej), pomiń go{recentRecipesContext}
 
 ZWRÓĆ TYLKO YAML w tym formacie (bez żadnych dodatkowych komentarzy, bez markdown code blocks):
 

@@ -151,6 +151,108 @@ public class RecipeDbContext : IDisposable
         return Convert.ToInt32(command.ExecuteScalar());
     }
 
+    public bool RecipeExists(string name)
+    {
+        var connection = GetConnection();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT COUNT(*) FROM Recipes
+            WHERE LOWER(TRIM(Name)) = LOWER(TRIM(@name))
+        ";
+        command.Parameters.AddWithValue("@name", name);
+
+        return Convert.ToInt32(command.ExecuteScalar()) > 0;
+    }
+
+    public Recipe? FindSimilarRecipe(string name, double similarityThreshold = 0.8)
+    {
+        // Simple similarity check - can be enhanced with Levenshtein distance
+        var connection = GetConnection();
+
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM Recipes";
+
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            var existingName = reader.GetString(1);
+            var similarity = CalculateSimilarity(name.ToLower().Trim(), existingName.ToLower().Trim());
+
+            if (similarity >= similarityThreshold)
+            {
+                return new Recipe
+                {
+                    Id = reader.GetInt32(0),
+                    Name = reader.GetString(1),
+                    Description = reader.GetString(2),
+                    Ingredients = reader.GetString(3),
+                    Instructions = reader.GetString(4),
+                    Calories = reader.GetInt32(5),
+                    Protein = reader.GetDouble(6),
+                    Carbohydrates = reader.GetDouble(7),
+                    Fat = reader.GetDouble(8),
+                    MealType = (MealType)reader.GetInt32(9),
+                    CreatedAt = DateTime.Parse(reader.GetString(10))
+                };
+            }
+        }
+
+        return null;
+    }
+
+    public List<Recipe> GetRecentRecipes(int count = 5)
+    {
+        var connection = GetConnection();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT * FROM Recipes
+            ORDER BY CreatedAt DESC
+            LIMIT @count
+        ";
+        command.Parameters.AddWithValue("@count", count);
+
+        var recipes = new List<Recipe>();
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            recipes.Add(new Recipe
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+                Description = reader.GetString(2),
+                Ingredients = reader.GetString(3),
+                Instructions = reader.GetString(4),
+                Calories = reader.GetInt32(5),
+                Protein = reader.GetDouble(6),
+                Carbohydrates = reader.GetDouble(7),
+                Fat = reader.GetDouble(8),
+                MealType = (MealType)reader.GetInt32(9),
+                CreatedAt = DateTime.Parse(reader.GetString(10))
+            });
+        }
+
+        return recipes;
+    }
+
+    private double CalculateSimilarity(string s1, string s2)
+    {
+        // Simple Jaccard similarity based on words
+        var words1 = s1.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+        var words2 = s2.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+
+        if (words1.Count == 0 && words2.Count == 0) return 1.0;
+        if (words1.Count == 0 || words2.Count == 0) return 0.0;
+
+        var intersection = words1.Intersect(words2).Count();
+        var union = words1.Union(words2).Count();
+
+        return (double)intersection / union;
+    }
+
     public void Dispose()
     {
         _connection?.Dispose();

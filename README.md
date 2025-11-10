@@ -155,9 +155,114 @@ Aplikacja domyślnie wykorzystuje **gpt-5-nano-2025-08-07**, najnowszy model Ope
 - Kliknij "Zapisz konfigurację"
 
 ### Strategia przetwarzania PDF:
-- **Małe PDF-y (≤10 stron)**: Przetwarzane jako całość
-- **Duże PDF-y (>10 stron)**: Dzielone na chunki po 10 stron z 1-stronicowym overlapem
-- **Bardzo duże PDF-y (>100 stron)**: Z gpt-5-nano można zwiększyć rozmiar chunku do 30-40 stron w konfiguracji
+- **Małe PDF-y (≤30 stron)**: Przetwarzane jako całość
+- **Duże PDF-y (>30 stron)**: Dzielone na chunki po 30 stron z 2-stronicowym overlapem
+- **Bardzo duże PDF-y (100+ stron)**: Zalecane chunki 30-40 stron dla gpt-5-nano
+- **145-stronicowy PDF**: Przetwarzany w ~5 chunkach (145÷30 ≈ 5)
+
+### Mechanizmy ochrony jakości:
+
+**1. Sprawdzanie duplikatów:**
+- Dokładne dopasowanie nazw (case-insensitive)
+- Fuzzy matching (podobieństwo >80%)
+- Kontekst ostatnich 10 przepisów przekazywany do AI
+
+**2. Rate limiting:**
+- Konfigurowalne opóźnienie między chunkami (domyślnie 3000ms)
+- Zapobiega blokadom API
+- Zalecane 3-5 sekund dla dużych PDF
+
+**3. Walidacja:**
+- Sprawdzanie kompletności danych (nazwa, składniki, instrukcje)
+- Weryfikacja wartości odżywczych
+- Szczegółowe logowanie każdego kroku
+- Raportowanie błędów bez przerywania procesu
+
+**4. Progress tracking:**
+- Podział na chunki z procentowym postępem
+- Podsumowanie dla każdego pliku
+- Finalne statystyki przetwarzania
+
+## Przykład przetwarzania 145-stronicowego PDF
+
+Dla pliku `Fit-Dania-z-Restauracji-bkrfac_69121080a1362_e.pdf` (145 stron):
+
+```
+================================================================================
+ROZPOCZĘCIE PRZETWARZANIA PDF
+================================================================================
+Folder: C:\Users\Karolina\Downloads\Dieta
+Chunking: 30 stron per chunk, 2 stron overlap
+Rate limiting: 3000ms opóźnienia między chunkami
+Sprawdzanie duplikatów: TAK
+================================================================================
+
+📄 Znaleziono 1 plików PDF
+
+================================================================================
+📋 Przetwarzanie: Fit-Dania-z-Restauracji-bkrfac_69121080a1362_e.pdf
+================================================================================
+📊 PDF podzielony na 5 chunków
+
+[Chunk 1/5] Strony 1-30
+  Rozmiar tekstu: 45230 znaków
+  Kontekst: 10 ostatnich przepisów w bazie
+  ⏳ Wysyłanie do OpenAI (gpt-5-nano-2025-08-07)...
+  ✅ Otrzymano 15 przepisów (czas: 8.3s)
+    ✅ Zapisano: Pizza Margherita FIT (Obiad) - 380 kcal
+    ✅ Zapisano: Burger z kurczaka (Obiad) - 450 kcal
+    ...
+  📈 Postęp pliku: 20%
+
+  ⏸️  Oczekiwanie 3000ms przed następnym chunkiem...
+
+[Chunk 2/5] Strony 29-58
+  ...
+
+✅ Zakończono plik: Fit-Dania-z-Restauracji-bkrfac_69121080a1362_e.pdf
+   Chunków przetworzonych: 5
+   Przepisów wyekstrahowanych: 73
+   Przepisów zapisanych: 68
+   Duplikatów pominiętych: 5
+────────────────────────────────────────────────────────────────────────────────
+
+================================================================================
+🎉 PRZETWARZANIE ZAKOŃCZONE
+================================================================================
+📁 Plików przetworzonych: 1
+📦 Chunków przetworzonych: 5
+📋 Przepisów wyekstrahowanych: 73
+✅ Przepisów zapisanych: 68
+⏭️  Duplikatów pominiętych: 5
+❌ Błędów: 0
+📊 Obecna liczba przepisów w bazie: 68
+================================================================================
+```
+
+## Konfiguracja zaawansowana
+
+### Dostosowanie dla różnych rozmiarów PDF:
+
+| Rozmiar PDF | Pages Per Chunk | Overlap | Delay (ms) | Model |
+|-------------|----------------|---------|------------|-------|
+| < 30 stron | 30 | 1 | 2000 | gpt-4o |
+| 30-100 stron | 30 | 2 | 3000 | gpt-5-nano |
+| 100-200 stron | 35 | 2 | 3000 | gpt-5-nano |
+| > 200 stron | 40 | 3 | 4000 | gpt-5-nano |
+
+### Przykładowa konfiguracja dla 145-stronicowego PDF:
+
+```json
+{
+  "Settings": {
+    "PagesPerChunk": 30,
+    "OverlapPages": 2,
+    "DelayBetweenChunksMs": 3000,
+    "CheckDuplicates": true,
+    "RecentRecipesContext": 10
+  }
+}
+```
 
 ## Kategorie posiłków
 
