@@ -63,11 +63,24 @@ set OPENAI_API_KEY=twój_klucz_api
 
 ## Użycie
 
-### Aplikacja konsolowa
+### Tryb webowy (domyślny - ZALECANY)
 
-Uruchom aplikację:
+Uruchom aplikację w trybie webowym:
 ```bash
 dotnet run
+```
+
+Aplikacja uruchomi się na:
+- **http://localhost:5000**
+- https://localhost:5001
+
+Otwórz przeglądarkę i przejdź do `http://localhost:5000` aby używać pełnego interfejsu webowego.
+
+### Tryb konsolowy (opcjonalny)
+
+Jeśli chcesz używać trybu konsolowego:
+```bash
+dotnet run --console
 ```
 
 Menu aplikacji:
@@ -76,9 +89,9 @@ Menu aplikacji:
 3. **View all recipes** - Wyświetl wszystkie przepisy w bazie danych
 4. **Exit** - Wyjście z aplikacji
 
-### Interfejs WWW
+### Interfejs WWW (http://localhost:5000)
 
-1. Otwórz plik `wwwroot/index.html` w przeglądarce
+1. Aplikacja automatycznie otworzy się w przeglądarce
 2. **Skonfiguruj model AI** (opcjonalnie):
    - Wybierz model z listy (gpt-5-nano-2025-08-07, gpt-4o, gpt-4-turbo, gpt-4)
    - Lub wpisz własny model OpenAI

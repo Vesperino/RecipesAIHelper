@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using RecipesAIHelper.Data;
 using RecipesAIHelper.Models;
@@ -9,7 +12,92 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        Console.WriteLine("=== Recipe AI Helper ===\n");
+        // Check if running in console mode
+        if (args.Contains("--console"))
+        {
+            await RunConsoleMode(args);
+            return;
+        }
+
+        // Run web mode
+        await RunWebMode(args);
+    }
+
+    static async Task RunWebMode(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+        // Configuration
+        builder.Configuration
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddEnvironmentVariables();
+
+        var openAiApiKey = builder.Configuration["OpenAI:ApiKey"] ??
+            Environment.GetEnvironmentVariable("OPENAI_API_KEY") ??
+            string.Empty;
+
+        var openAiModel = builder.Configuration["OpenAI:Model"] ?? "gpt-5-nano-2025-08-07";
+        var databasePath = builder.Configuration["Settings:DatabasePath"] ?? "recipes.db";
+        var pagesPerChunk = int.TryParse(builder.Configuration["Settings:PagesPerChunk"], out var ppc) ? ppc : 30;
+        var overlapPages = int.TryParse(builder.Configuration["Settings:OverlapPages"], out var op) ? op : 2;
+
+        if (string.IsNullOrEmpty(openAiApiKey) || openAiApiKey == "YOUR_OPENAI_API_KEY_HERE")
+        {
+            Console.WriteLine("ERROR: OpenAI API key not configured!");
+            Console.WriteLine("Set it in appsettings.json or OPENAI_API_KEY environment variable.");
+            return;
+        }
+
+        // Add services
+        builder.Services.AddControllers();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
+        });
+
+        // Register services
+        builder.Services.AddSingleton(new RecipeDbContext(databasePath));
+        builder.Services.AddSingleton(new PdfProcessorService(pagesPerChunk, overlapPages));
+        builder.Services.AddSingleton(new OpenAIService(openAiApiKey, openAiModel));
+
+        var app = builder.Build();
+
+        // Initialize database
+        var db = app.Services.GetRequiredService<RecipeDbContext>();
+        db.InitializeDatabase();
+
+        Console.WriteLine("=== Recipe AI Helper - Web Mode ===");
+        Console.WriteLine($"Database: {databasePath}");
+        Console.WriteLine($"Recipes in database: {db.GetRecipeCount()}");
+        Console.WriteLine($"OpenAI Model: {openAiModel}");
+        Console.WriteLine();
+
+        // Configure middleware
+        app.UseCors();
+        app.UseStaticFiles();
+        app.MapControllers();
+
+        // Fallback to index.html
+        app.MapFallbackToFile("index.html");
+
+        Console.WriteLine("Web interface available at:");
+        Console.WriteLine("  http://localhost:5000");
+        Console.WriteLine("  https://localhost:5001");
+        Console.WriteLine();
+        Console.WriteLine("Press Ctrl+C to stop");
+
+        await app.RunAsync("http://localhost:5000");
+    }
+
+    static async Task RunConsoleMode(string[] args)
+    {
+        Console.WriteLine("=== Recipe AI Helper - Console Mode ===\n");
 
         // Load configuration
         var configuration = new ConfigurationBuilder()

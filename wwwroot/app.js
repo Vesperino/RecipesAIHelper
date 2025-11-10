@@ -196,39 +196,16 @@ async function loadPdfFiles() {
     const fileListDiv = document.getElementById('fileList');
     fileListDiv.innerHTML = '<p class="loading">Ładowanie listy plików...</p>';
 
-    // W produkcji: API call do backendu
-    // const response = await fetch('/api/files/list');
-    // availableFiles = await response.json();
+    try {
+        const response = await fetch('/api/files/list');
+        if (!response.ok) throw new Error('Failed to load files');
 
-    // Mock data - te same pliki które widziałeś w folderze
-    availableFiles = [
-        'Fit_Ciasta_-_wersja_do_wydruku_6912109c7c823_e.pdf',
-        'Fit_Desery_i_Koktajle_-_wersja_do_wydruku_6912109dbbf2b_e.pdf',
-        'Fit_Fast_Food_-_wersja_do_wydruku_69121076abeb9_e.pdf',
-        'Fit_Obiady_-_wersja_do_wydruku_69121077a8f92_e.pdf',
-        'Fit_Słodycze_-_wersja_do_wydruku_6912109e9b854_e.pdf',
-        'Fit_Słodycze_691210a2d0719_e.pdf',
-        'Fit_Słodycze_w_10_Minut_-_wersja_do_wydruku_691210a0a0170_e.pdf',
-        'Fit_Słodycze_z_Czterech_Składników_-_wersja_do_wydruku_691210a585dd9_e.pdf',
-        'Fit-Dania-w-5-Minut-wersja-do-druku-1_6912107ebc5ed_e.pdf',
-        'Fit-Dania-z-Restauracji-bkrfac_69121080a1362_e.pdf',
-        'Fit-Ddania-w-15-Minut-wersja-do-wydruku-1_6912107d9fa0a_e.pdf',
-        'Fit-Posilki-dla-Zabieganych-ml8joz_6912108317c0c_e.pdf',
-        'Fit-Śniadania_6912107bc77c1_e.pdf',
-        'Fit-Śniadania-wersja-do-druku_6912107a61e46_e.pdf',
-        'Jadlospis-Domowy-Fast-Food-imcweq_69121087d50b0_e.pdf',
-        'Jadlospis-Dzien-jedzenia-w-15-minut-4ryhjr_69121088a24a8_e.pdf',
-        'Jadlospis-Dzien-jedzenia-w-25-minut-ijuwpl_691210893b029_e.pdf',
-        'Jadlospis-Legalne-slodycze-rsgnas_691210aeb2ee1_e.pdf',
-        'Jadlospis-Legalne-slodycze-rsgnas_691210b349d34_e.pdf',
-        'Jadlospis-Slodka-redukcja-bhl6g2_691210ad974f3_e.pdf',
-        'Jadlospis-Weekendowy-dla-par-lhd4cv_691210ae3a18b_e.pdf',
-        'Jadlospis-Weekendowy-dla-par-nfocdr_69121095d503b_e.pdf',
-        'Jadlospis-Ze-sniadaniem-na-slodko-d5cwk3_691210afa7a5d_e.pdf',
-        'smakolyki_druk-cmaaig_691210a6d7bc4_e.pdf'
-    ];
-
-    renderFileList();
+        availableFiles = await response.json();
+        renderFileList();
+    } catch (error) {
+        fileListDiv.innerHTML = `<p class="loading" style="color: #ef4444;">Błąd: ${error.message}</p>`;
+        console.error('Error loading files:', error);
+    }
 }
 
 function renderFileList() {
@@ -285,77 +262,85 @@ async function processSelectedFiles() {
         return;
     }
 
-    // W produkcji: API call do backendu .NET który uruchomi przetwarzanie
-    // await fetch('/api/recipes/process', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ files: selectedFiles })
-    // });
+    try {
+        const response = await fetch('/api/processing/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files: selectedFiles })
+        });
 
-    alert(`Rozpoczęto przetwarzanie ${selectedFiles.length} plików!\n\nPrzejdź do aplikacji konsolowej aby zobaczyć postęp.`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to start processing');
+        }
+
+        alert(`Rozpoczęto przetwarzanie ${selectedFiles.length} plików!\n\nPrzetwarzanie odbywa się w tle. Możesz monitorować postęp w konsoli serwera.`);
+
+        // Start monitoring processing status
+        startStatusMonitoring();
+    } catch (error) {
+        alert(`Błąd: ${error.message}`);
+        console.error('Error starting processing:', error);
+    }
+}
+
+let statusInterval = null;
+
+function startStatusMonitoring() {
+    if (statusInterval) clearInterval(statusInterval);
+
+    statusInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/processing/status');
+            const status = await response.json();
+
+            if (!status.isRunning && statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+
+                if (status.errors === 0) {
+                    alert(`Przetwarzanie zakończone!\n\nZapisano: ${status.recipesSaved} przepisów\nPominięto duplikatów: ${status.duplicatesSkipped}`);
+                } else {
+                    alert(`Przetwarzanie zakończone z błędami!\n\nZapisano: ${status.recipesSaved}\nBłędy: ${status.errors}\n\nOstatni błąd: ${status.lastError}`);
+                }
+
+                // Refresh database view
+                loadDatabase();
+            }
+        } catch (error) {
+            console.error('Error checking status:', error);
+        }
+    }, 5000); // Check every 5 seconds
 }
 
 // ============== DATABASE MANAGEMENT ==============
 
 async function loadRecipesFromDatabase() {
-    // W produkcji: API call do backendu
-    // const response = await fetch('/api/recipes');
-    // recipesDatabase = await response.json();
+    try {
+        const response = await fetch('/api/recipes');
+        if (!response.ok) throw new Error('Failed to load recipes');
 
-    // Mock data dla testów
-    const storedRecipes = localStorage.getItem('recipes');
-    if (storedRecipes) {
-        recipesDatabase = JSON.parse(storedRecipes);
-    } else {
-        recipesDatabase = [
-            {
-                id: 1,
-                name: "Owsianka z owocami",
-                description: "Zdrowe i pożywne śniadanie",
-                ingredients: "Płatki owsiane\nMleko\nBanany\nJagody",
-                instructions: "1. Zagotuj mleko\n2. Dodaj płatki\n3. Gotuj 5 minut\n4. Dodaj owoce",
-                calories: 350,
-                protein: 12,
-                carbohydrates: 55,
-                fat: 8,
-                mealType: "Sniadanie"
-            },
-            {
-                id: 2,
-                name: "Kurczak z ryżem i warzywami",
-                description: "Zbilansowany obiad",
-                ingredients: "Pierś z kurczaka\nRyż brązowy\nBrokuły\nMarchewka",
-                instructions: "1. Ugotuj ryż\n2. Usmaż kurczaka\n3. Ugotuj warzywa na parze\n4. Podawaj razem",
-                calories: 520,
-                protein: 45,
-                carbohydrates: 60,
-                fat: 12,
-                mealType: "Obiad"
-            },
-            {
-                id: 3,
-                name: "Łosoś z batatami",
-                description: "Kolacja bogata w omega-3",
-                ingredients: "Filet z łososia\nBataty\nSzpinak",
-                instructions: "1. Upiecz bataty\n2. Usmaż łososia\n3. Przygotuj szpinak\n4. Podawaj na ciepło",
-                calories: 480,
-                protein: 38,
-                carbohydrates: 45,
-                fat: 18,
-                mealType: "Kolacja"
-            }
-        ];
-        saveRecipesToLocalStorage();
+        recipesDatabase = await response.json();
+    } catch (error) {
+        console.error('Error loading recipes:', error);
+        recipesDatabase = [];
     }
 }
 
-function loadDatabase() {
+async function loadDatabase() {
     const viewerDiv = document.getElementById('databaseViewer');
     viewerDiv.innerHTML = '<p class="loading">Ładowanie przepisów z bazy...</p>';
 
-    setTimeout(() => {
+    try {
+        const response = await fetch('/api/recipes');
+        if (!response.ok) throw new Error('Failed to load recipes');
+
+        recipesDatabase = await response.json();
         renderDatabaseTable(recipesDatabase);
-    }, 500);
+    } catch (error) {
+        viewerDiv.innerHTML = `<p class="loading" style="color: #ef4444;">Błąd: ${error.message}</p>`;
+        console.error('Error loading recipes:', error);
+    }
 }
 
 function refreshDatabase() {
@@ -461,31 +446,38 @@ async function saveRecipeEdit(e) {
     e.preventDefault();
 
     const id = parseInt(document.getElementById('editRecipeId').value);
-    const recipe = recipesDatabase.find(r => r.id === id);
 
-    if (!recipe) return;
+    const updatedRecipe = {
+        name: document.getElementById('editName').value,
+        description: document.getElementById('editDescription').value,
+        mealType: document.getElementById('editCategory').value,
+        ingredients: document.getElementById('editIngredients').value,
+        instructions: document.getElementById('editInstructions').value,
+        calories: parseInt(document.getElementById('editCalories').value),
+        protein: parseFloat(document.getElementById('editProtein').value),
+        carbohydrates: parseFloat(document.getElementById('editCarbs').value),
+        fat: parseFloat(document.getElementById('editFat').value)
+    };
 
-    recipe.name = document.getElementById('editName').value;
-    recipe.description = document.getElementById('editDescription').value;
-    recipe.mealType = document.getElementById('editCategory').value;
-    recipe.ingredients = document.getElementById('editIngredients').value;
-    recipe.instructions = document.getElementById('editInstructions').value;
-    recipe.calories = parseInt(document.getElementById('editCalories').value);
-    recipe.protein = parseFloat(document.getElementById('editProtein').value);
-    recipe.carbohydrates = parseFloat(document.getElementById('editCarbs').value);
-    recipe.fat = parseFloat(document.getElementById('editFat').value);
+    try {
+        const response = await fetch(`/api/recipes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedRecipe)
+        });
 
-    // W produkcji: API call
-    // await fetch(`/api/recipes/${id}`, {
-    //     method: 'PUT',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify(recipe)
-    // });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Update not yet implemented');
+        }
 
-    saveRecipesToLocalStorage();
-    closeEditModal();
-    loadDatabase();
-    alert('Przepis został zaktualizowany!');
+        closeEditModal();
+        loadDatabase();
+        alert('Przepis został zaktualizowany!');
+    } catch (error) {
+        alert(`Błąd: ${error.message}`);
+        console.error('Error updating recipe:', error);
+    }
 }
 
 async function deleteRecipe(id) {
@@ -496,19 +488,20 @@ async function deleteRecipe(id) {
         return;
     }
 
-    // W produkcji: API call
-    // await fetch(`/api/recipes/${id}`, { method: 'DELETE' });
+    try {
+        const response = await fetch(`/api/recipes/${id}`, { method: 'DELETE' });
 
-    const index = recipesDatabase.findIndex(r => r.id === id);
-    recipesDatabase.splice(index, 1);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Delete not yet implemented');
+        }
 
-    saveRecipesToLocalStorage();
-    loadDatabase();
-    alert('Przepis został usunięty!');
-}
-
-function saveRecipesToLocalStorage() {
-    localStorage.setItem('recipes', JSON.stringify(recipesDatabase));
+        loadDatabase();
+        alert('Przepis został usunięty!');
+    } catch (error) {
+        alert(`Błąd: ${error.message}`);
+        console.error('Error deleting recipe:', error);
+    }
 }
 
 // ============== MEAL PLANNING ==============
