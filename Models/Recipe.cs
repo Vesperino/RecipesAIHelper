@@ -22,10 +22,9 @@ public class Recipe
 
 public enum MealType
 {
-    Breakfast,
-    Lunch,
-    Dinner,
-    Dessert,
-    Snack,
-    Appetizer
+    Sniadanie,    // Śniadanie
+    Obiad,        // Obiad
+    Kolacja,      // Kolacja
+    Deser,        // Deser
+    Napoj         // Napój
 }

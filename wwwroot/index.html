@@ -3,47 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recipe AI Helper - Meal Planner</title>
+    <title>Recipe AI Helper - Zarządzanie Przepisami</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Recipe AI Helper</h1>
-            <p>Plan your meals and generate shopping lists</p>
+            <p>Inteligentne zarządzanie przepisami kulinarymi</p>
         </header>
 
         <main>
+            <!-- AI Model Configuration -->
             <section class="card">
-                <h2>Daily Meal Plan</h2>
-                <button id="generateDailyBtn" class="btn btn-primary">Generate Random Daily Plan</button>
+                <h2>🤖 Konfiguracja Modelu AI</h2>
+                <div style="display: flex; flex-direction: column; gap: 15px; max-width: 600px;">
+                    <div>
+                        <label for="aiModel" style="display: block; margin-bottom: 8px; color: #e0e0e0; font-weight: 600;">
+                            Model OpenAI:
+                        </label>
+                        <select id="aiModelSelect" style="padding: 12px; border-radius: 8px; border: 1px solid #4a4a4a; background: #2a2a2a; color: #e0e0e0; font-size: 1em; width: 100%; max-width: 500px;">
+                            <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07 (Zalecany - 400k context)</option>
+                            <option value="gpt-4o">gpt-4o (Poprzedni)</option>
+                            <option value="gpt-4-turbo">gpt-4-turbo</option>
+                            <option value="gpt-4">gpt-4</option>
+                            <option value="custom">Własny model...</option>
+                        </select>
+                    </div>
+                    <div id="customModelDiv" style="display: none;">
+                        <label for="customModel" style="display: block; margin-bottom: 8px; color: #e0e0e0; font-weight: 600;">
+                            Nazwa własnego modelu:
+                        </label>
+                        <input type="text" id="customModel" placeholder="np. gpt-5-preview" style="padding: 12px; border-radius: 8px; border: 1px solid #4a4a4a; background: #2a2a2a; color: #e0e0e0; font-size: 1em; width: 100%; max-width: 500px;">
+                    </div>
+                    <div>
+                        <button id="saveModelBtn" class="btn btn-success">Zapisz Konfigurację Modelu</button>
+                        <span id="modelStatus" style="margin-left: 15px; color: #9ca3af;"></span>
+                    </div>
+                    <div style="background: #1f1f1f; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-top: 10px;">
+                        <h4 style="color: #ffffff; margin-bottom: 10px;">Informacje o wybranym modelu:</h4>
+                        <div id="modelInfo" style="color: #9ca3af; font-size: 0.95em;">
+                            <p><strong>gpt-5-nano-2025-08-07:</strong></p>
+                            <ul style="margin-left: 20px; margin-top: 5px;">
+                                <li>Context window: 400,000 tokenów</li>
+                                <li>Max output: 128,000 tokenów</li>
+                                <li>Wsparcie reasoning tokens</li>
+                                <li>Zalecane ~30-40 stron PDF na raz</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PDF File Manager -->
+            <section class="card">
+                <h2>📄 Zarządzanie Plikami PDF</h2>
+                <div class="file-selector">
+                    <div class="file-actions">
+                        <button id="loadFilesBtn" class="btn btn-primary">Załaduj Pliki z Folderu</button>
+                        <button id="selectAllBtn" class="btn btn-secondary">Zaznacz Wszystkie</button>
+                        <button id="deselectAllBtn" class="btn btn-secondary">Odznacz Wszystkie</button>
+                        <button id="processSelectedBtn" class="btn btn-success">Przetwórz Zaznaczone</button>
+                    </div>
+                    <div id="fileList" class="file-list"></div>
+                </div>
+            </section>
+
+            <!-- Database Manager -->
+            <section class="card">
+                <h2>🗃️ Zarządzanie Bazą Danych</h2>
+                <div class="file-actions">
+                    <button id="loadDatabaseBtn" class="btn btn-primary">Załaduj Przepisy z Bazy</button>
+                    <button id="refreshDbBtn" class="btn btn-secondary">Odśwież</button>
+                    <input type="text" id="searchDb" placeholder="Szukaj przepisu..." style="padding: 10px; border-radius: 8px; border: 1px solid #4a4a4a; background: #2a2a2a; color: #e0e0e0; margin-right: 10px;">
+                </div>
+                <div id="databaseViewer" class="db-viewer"></div>
+            </section>
+
+            <!-- Daily Meal Plan -->
+            <section class="card">
+                <h2>📅 Plan Posiłków na Dziś</h2>
+                <button id="generateDailyBtn" class="btn btn-primary">Generuj Losowy Plan</button>
                 <div id="dailyPlan" class="meal-plan"></div>
             </section>
 
+            <!-- Weekly Meal Plan -->
             <section class="card">
-                <h2>Weekly Meal Plan</h2>
+                <h2>📆 Tygodniowy Plan Posiłków</h2>
                 <div class="week-selector">
-                    <label for="startDate">Start Date:</label>
+                    <label for="startDate">Data Rozpoczęcia:</label>
                     <input type="date" id="startDate">
-                    <button id="generateWeeklyBtn" class="btn btn-primary">Generate Weekly Plan</button>
-                    <button id="printWeeklyBtn" class="btn btn-secondary">Print Weekly Plan</button>
+                    <button id="generateWeeklyBtn" class="btn btn-primary">Generuj Plan Tygodniowy</button>
+                    <button id="printWeeklyBtn" class="btn btn-secondary">Wydrukuj Plan</button>
                 </div>
                 <div id="weeklyPlan" class="meal-plan"></div>
             </section>
 
+            <!-- Shopping List -->
             <section class="card">
-                <h2>Shopping List</h2>
-                <button id="generateShoppingListBtn" class="btn btn-primary">Generate from Weekly Plan</button>
-                <button id="exportTodoistBtn" class="btn btn-success">Export to Todoist</button>
+                <h2>🛒 Lista Zakupów</h2>
+                <button id="generateShoppingListBtn" class="btn btn-primary">Generuj z Planu Tygodniowego</button>
+                <button id="exportTodoistBtn" class="btn btn-success">Eksportuj do Todoist</button>
                 <div id="shoppingList" class="shopping-list"></div>
             </section>
-
-            <section class="card">
-                <h2>Recipe Database</h2>
-                <button id="loadRecipesBtn" class="btn btn-primary">Load All Recipes</button>
-                <div id="recipesList" class="recipes-list"></div>
-            </section>
         </main>
+    </div>
+
+    <!-- Edit Recipe Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Edytuj Przepis</h2>
+            <form id="editForm">
+                <input type="hidden" id="editRecipeId">
+
+                <label for="editName">Nazwa:</label>
+                <input type="text" id="editName" required>
+
+                <label for="editDescription">Opis:</label>
+                <textarea id="editDescription"></textarea>
+
+                <label for="editCategory">Kategoria:</label>
+                <select id="editCategory" required>
+                    <option value="Sniadanie">Śniadanie</option>
+                    <option value="Obiad">Obiad</option>
+                    <option value="Kolacja">Kolacja</option>
+                    <option value="Deser">Deser</option>
+                    <option value="Napoj">Napój</option>
+                </select>
+
+                <label for="editIngredients">Składniki (jeden na linię):</label>
+                <textarea id="editIngredients" required></textarea>
+
+                <label for="editInstructions">Sposób wykonania:</label>
+                <textarea id="editInstructions" required></textarea>
+
+                <label for="editCalories">Kalorie:</label>
+                <input type="number" id="editCalories" required>
+
+                <label for="editProtein">Białko (g):</label>
+                <input type="number" step="0.1" id="editProtein" required>
+
+                <label for="editCarbs">Węglowodany (g):</label>
+                <input type="number" step="0.1" id="editCarbs" required>
+
+                <label for="editFat">Tłuszcze (g):</label>
+                <input type="number" step="0.1" id="editFat" required>
+
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button type="submit" class="btn btn-success">Zapisz Zmiany</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Anuluj</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div id="printArea" class="print-only"></div>
