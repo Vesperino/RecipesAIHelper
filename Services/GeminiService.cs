@@ -1,7 +1,5 @@
-using OpenAI;
-using OpenAI.Chat;
+using Mscc.GenerativeAI;
 using RecipesAIHelper.Models;
-using System.ClientModel;
 using System.Text.Json;
 using Polly;
 using Polly.Retry;
@@ -10,33 +8,29 @@ using static RecipesAIHelper.Services.PdfDirectService;
 
 namespace RecipesAIHelper.Services;
 
-public class OpenAIService : IAIService
+public class GeminiService : IAIService
 {
-    private readonly ChatClient _chatClient;
+    private readonly GoogleAI _genAi;
+    private readonly GenerativeModel _model;
     private readonly string _modelName;
     private readonly AsyncRetryPolicy _retryPolicy;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public OpenAIService(string apiKey, string modelName = "gpt-5-mini-2025-08-07")
+    public GeminiService(string apiKey, string modelName = "gemini-2.5-flash")
     {
         _modelName = modelName;
+        _genAi = new GoogleAI(apiKey);
+        _model = _genAi.GenerativeModel(model: modelName);
 
-        // Create client with extended timeout (default is 100s, we need 5 minutes)
-        var clientOptions = new OpenAIClientOptions
-        {
-            NetworkTimeout = TimeSpan.FromMinutes(5)
-        };
-        _chatClient = new ChatClient(modelName, new ApiKeyCredential(apiKey), clientOptions);
-
-        // Polly retry policy: 3 próby z 2s, 4s, 8s opóźnieniami
+        // Polly retry policy: 3 attempts with 2s, 4s, 8s delays
         _retryPolicy = Policy
-            .Handle<Exception>(ex => ex is not OperationCanceledException) // Don't retry timeouts
+            .Handle<Exception>(ex => ex is not OperationCanceledException)
             .WaitAndRetryAsync(
                 retryCount: 3,
                 sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
                 onRetry: (exception, timeSpan, retryCount, context) =>
                 {
-                    Console.WriteLine($"⚠️ Błąd API (próba {retryCount}/3): {exception.GetType().Name}");
+                    Console.WriteLine($"⚠️ Błąd Gemini API (próba {retryCount}/3): {exception.GetType().Name}");
                     Console.WriteLine($"   Komunikat: {exception.Message}");
                     if (exception.InnerException != null)
                     {
@@ -51,24 +45,25 @@ public class OpenAIService : IAIService
             WriteIndented = true
         };
 
-        Console.WriteLine($"✅ OpenAI Service zainicjalizowany z modelem: {_modelName}");
-        Console.WriteLine($"   NetworkTimeout: 5 minut (300s)");
+        Console.WriteLine($"✅ Gemini Service zainicjalizowany z modelem: {_modelName}");
+        Console.WriteLine($"   Max pages per chunk: 100 stron (1M token context)");
+        Console.WriteLine($"   Direct PDF support: enabled (inline_data with base64)");
     }
 
     // ==================== IAIService Implementation ====================
 
-    public string GetProviderName() => "OpenAI";
+    public string GetProviderName() => "Gemini";
 
     public string GetModelName() => _modelName;
 
-    public int GetMaxPagesPerChunk() => 3; // OpenAI Vision works best with 3 pages
+    public int GetMaxPagesPerChunk() => 100; // Gemini 2.5 Flash supports ~1500 pages total
 
-    public bool SupportsDirectPDF() => true; // OpenAI supports PDF via ChatMessageContentPart.CreateImagePart
+    public bool SupportsDirectPDF() => true; // Gemini supports PDF via inline_data with base64
 
     // ==================== Recipe Extraction Methods ====================
 
     /// <summary>
-    /// Extracts recipes from PDF file directly (sends PDF as Base64 to OpenAI)
+    /// Extracts recipes from PDF file directly using Gemini inline_data
     /// </summary>
     public async Task<List<RecipeExtractionResult>> ExtractRecipesFromPdf(
         PdfFileChunk pdfChunk,
@@ -78,58 +73,95 @@ public class OpenAIService : IAIService
         {
             try
             {
+                Console.WriteLine($"📤 Wysyłanie PDF do Gemini: {pdfChunk.FileName} ({pdfChunk.FileSize / 1024.0 / 1024.0:F2} MB)...");
+
                 // Build prompt using shared PromptBuilder
                 var systemPrompt = PromptBuilder.BuildPdfExtractionPrompt(recentRecipes);
                 var userPrompt = PromptBuilder.BuildPdfUserPrompt(pdfChunk.FileName);
+                var promptText = $"{systemPrompt}\n\n{userPrompt}";
 
-                var messages = new List<ChatMessage>
+                // Build multimodal request with text + PDF
+                var parts = new List<IPart>();
+
+                // Add text prompt
+                parts.Add(new TextData { Text = promptText });
+
+                // Add PDF as inline data (raw base64, not data URI)
+                // Gemini API expects inline_data format: {"mime_type": "application/pdf", "data": "base64..."}
+                parts.Add(new InlineData
                 {
-                    new SystemChatMessage(systemPrompt),
-                    new UserChatMessage(new List<ChatMessageContentPart>
-                    {
-                        ChatMessageContentPart.CreateTextPart(userPrompt),
-                        ChatMessageContentPart.CreateImagePart(
-                            BinaryData.FromBytes(Convert.FromBase64String(pdfChunk.Base64Data)),
-                            "application/pdf")
-                    })
+                    MimeType = "application/pdf",
+                    Data = pdfChunk.Base64Data
+                });
+
+                Console.WriteLine($"✅ Przygotowano request z PDF ({pdfChunk.FileSize / 1024.0:F0} KB)");
+
+                var content = new Content
+                {
+                    Role = Role.User,
+                    Parts = parts
                 };
 
-                Console.WriteLine($"📤 Wysyłanie PDF do OpenAI: {pdfChunk.FileName} ({pdfChunk.FileSize / 1024.0 / 1024.0:F2} MB)...");
+                var request = new GenerateContentRequest
+                {
+                    Contents = new[] { content }.ToList()
+                };
 
                 var startTime = DateTime.Now;
-                var completion = await _chatClient.CompleteChatAsync(messages);
+                var response = await _model.GenerateContent(request);
                 var elapsed = (DateTime.Now - startTime).TotalSeconds;
 
-                var responseContent = completion.Value.Content[0].Text.Trim();
+                var responseContent = response?.Text?.Trim() ?? "";
                 Console.WriteLine($"📥 Otrzymano odpowiedź ({responseContent.Length} znaków, {elapsed:F1}s)");
+
+                // Debug: Save response to file
+                var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "gemini_response_debug.json");
+                File.WriteAllText(debugPath, responseContent);
+                Console.WriteLine($"🔍 DEBUG: Zapisano odpowiedź Gemini do: {debugPath}");
 
                 // Parse JSON response
                 var recipes = ParseJsonResponse(responseContent);
 
                 Console.WriteLine($"✅ Wyekstraktowano {recipes.Count} przepisów z PDF");
 
+                // Debug: Log nutritionVariants info
+                foreach (var recipe in recipes)
+                {
+                    var variantsCount = recipe.NutritionVariants?.Count ?? 0;
+                    Console.WriteLine($"   📊 {recipe.Name}: nutritionVariants = {(recipe.NutritionVariants == null ? "NULL" : $"{variantsCount} wariantów")}");
+                    if (recipe.NutritionVariants != null)
+                    {
+                        foreach (var variant in recipe.NutritionVariants)
+                        {
+                            Console.WriteLine($"      - {variant.Label}: {variant.Calories} kcal, B:{variant.Protein}g, W:{variant.Carbohydrates}g, T:{variant.Fat}g");
+                        }
+                    }
+                }
+
                 return recipes;
             }
             catch (JsonException ex)
             {
                 Console.WriteLine($"❌ Błąd parsowania JSON: {ex.Message}");
-                Console.WriteLine($"   Sprawdź format odpowiedzi OpenAI");
+                Console.WriteLine($"   Sprawdź format odpowiedzi Gemini");
                 return new List<RecipeExtractionResult>();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Błąd przetwarzania PDF: {ex.Message}");
+                Console.WriteLine($"❌ Błąd przetwarzania PDF: {ex.GetType().Name}");
+                Console.WriteLine($"   Komunikat: {ex.Message}");
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine($"   Inner exception: {ex.InnerException.Message}");
                 }
-                throw; // Let Polly retry
+                Console.WriteLine($"   Stack trace (first 500 chars): {ex.StackTrace?.Substring(0, Math.Min(500, ex.StackTrace?.Length ?? 0))}");
+                throw;
             }
         });
     }
 
     /// <summary>
-    /// Extracts recipes from PDF page images using Vision API
+    /// Extracts recipes from PDF page images using Gemini Vision API
     /// </summary>
     public async Task<List<RecipeExtractionResult>> ExtractRecipesFromImages(
         PdfImageChunk imageChunk,
@@ -141,7 +173,7 @@ public class OpenAIService : IAIService
             try
             {
                 var totalImageSizeMB = imageChunk.Pages.Sum(p => p.ImageData.Length) / 1024.0 / 1024.0;
-                Console.WriteLine($"📤 Wysyłanie {imageChunk.Pages.Count} obrazów do OpenAI (chunk {imageChunk.ChunkNumber}, strony {imageChunk.StartPage}-{imageChunk.EndPage})...");
+                Console.WriteLine($"📤 Wysyłanie {imageChunk.Pages.Count} obrazów do Gemini (chunk {imageChunk.ChunkNumber}, strony {imageChunk.StartPage}-{imageChunk.EndPage})...");
                 Console.WriteLine($"   Rozmiar danych: {totalImageSizeMB:F2} MB");
 
                 foreach (var page in imageChunk.Pages)
@@ -158,58 +190,77 @@ public class OpenAIService : IAIService
                 // Build prompt using shared PromptBuilder
                 var systemPrompt = PromptBuilder.BuildImageExtractionPrompt(recentRecipes, alreadyProcessedInPdf);
                 var userPrompt = PromptBuilder.BuildImageUserPrompt(imageChunk.StartPage, imageChunk.EndPage, imageChunk.Pages.Count);
+                var promptText = $"{systemPrompt}\n\n{userPrompt}";
 
-                // Build user message with text + images
-                var contentParts = new List<ChatMessageContentPart>
-                {
-                    ChatMessageContentPart.CreateTextPart(userPrompt)
-                };
+                // Build multimodal request with text + images
+                var parts = new List<IPart>();
 
-                // Add each page image
+                // Add text prompt
+                parts.Add(new TextData { Text = promptText });
+
+                // Add all images
                 foreach (var page in imageChunk.Pages)
                 {
-                    var imagePart = ChatMessageContentPart.CreateImagePart(
-                        BinaryData.FromBytes(page.ImageData),
-                        page.MimeType);
-                    contentParts.Add(imagePart);
+                    var imageBase64 = Convert.ToBase64String(page.ImageData);
+                    parts.Add(new InlineData
+                    {
+                        MimeType = "image/png",
+                        Data = imageBase64
+                    });
+                    Console.WriteLine($"   📷 Dodano obraz strony {page.PageNumber} ({page.ImageData.Length / 1024.0:F0} KB)");
                 }
 
-                var messages = new List<ChatMessage>
+                var content = new Content
                 {
-                    new SystemChatMessage(systemPrompt),
-                    new UserChatMessage(contentParts)
+                    Role = Role.User,
+                    Parts = parts
                 };
 
-                Console.WriteLine($"   ⏱️  Timeout: 5 minut");
+                var request = new GenerateContentRequest
+                {
+                    Contents = new[] { content }.ToList()
+                };
+
+                Console.WriteLine($"✅ Przygotowano request z {parts.Count} częściami (1 prompt + {imageChunk.Pages.Count} obrazów)");
+
                 var startTime = DateTime.Now;
-
-                // Create cancellation token with 5 minute timeout
-                using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-
-                var completion = await _chatClient.CompleteChatAsync(messages, cancellationToken: cts.Token);
+                var response = await _model.GenerateContent(request);
                 var elapsed = (DateTime.Now - startTime).TotalSeconds;
 
-                var responseContent = completion.Value.Content[0].Text.Trim();
+                var responseContent = response?.Text?.Trim() ?? "";
                 Console.WriteLine($"📥 Otrzymano odpowiedź ({responseContent.Length} znaków, {elapsed:F1}s)");
+
+                // Debug: Save response to file
+                var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"gemini_response_chunk{imageChunk.ChunkNumber}_debug.json");
+                File.WriteAllText(debugPath, responseContent);
+                Console.WriteLine($"🔍 DEBUG: Zapisano odpowiedź Gemini do: {debugPath}");
 
                 // Parse JSON response
                 var recipes = ParseJsonResponse(responseContent);
 
                 Console.WriteLine($"✅ Wyekstraktowano {recipes.Count} przepisów z chunka {imageChunk.ChunkNumber}");
 
+                // Debug: Log nutritionVariants info
+                foreach (var recipe in recipes)
+                {
+                    var variantsCount = recipe.NutritionVariants?.Count ?? 0;
+                    Console.WriteLine($"   📊 {recipe.Name}: nutritionVariants = {(recipe.NutritionVariants == null ? "NULL" : $"{variantsCount} wariantów")}");
+                    if (recipe.NutritionVariants != null)
+                    {
+                        foreach (var variant in recipe.NutritionVariants)
+                        {
+                            Console.WriteLine($"      - {variant.Label}: {variant.Calories} kcal, B:{variant.Protein}g, W:{variant.Carbohydrates}g, T:{variant.Fat}g");
+                        }
+                    }
+                }
+
                 return recipes;
             }
             catch (JsonException ex)
             {
                 Console.WriteLine($"❌ Błąd parsowania JSON w chunku {imageChunk.ChunkNumber}: {ex.Message}");
-                Console.WriteLine($"   Sprawdź format odpowiedzi OpenAI");
+                Console.WriteLine($"   Sprawdź format odpowiedzi Gemini");
                 return new List<RecipeExtractionResult>();
-            }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine($"⏱️ TIMEOUT chunka {imageChunk.ChunkNumber}: Przekroczono limit 5 minut!");
-                Console.WriteLine($"   To może oznaczać zbyt duże obrazy lub problem z API OpenAI");
-                throw;
             }
             catch (Exception ex)
             {
@@ -219,7 +270,7 @@ public class OpenAIService : IAIService
                 {
                     Console.WriteLine($"   Inner exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
                 }
-                throw; // Let Polly retry
+                throw;
             }
         });
     }
@@ -227,7 +278,7 @@ public class OpenAIService : IAIService
     // ==================== Helper Methods ====================
 
     /// <summary>
-    /// Parses JSON response from OpenAI
+    /// Parses JSON response from Gemini
     /// </summary>
     private List<RecipeExtractionResult> ParseJsonResponse(string responseContent)
     {

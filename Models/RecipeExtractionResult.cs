@@ -30,6 +30,12 @@ public class RecipeExtractionResult
 
     [JsonPropertyName("mealType")]
     public string MealType { get; set; } = string.Empty;
+
+    [JsonPropertyName("servings")]
+    public int? Servings { get; set; }
+
+    [JsonPropertyName("nutritionVariants")]
+    public List<NutritionVariant>? NutritionVariants { get; set; }
 }
 
 public class RecipeExtractionsResponse

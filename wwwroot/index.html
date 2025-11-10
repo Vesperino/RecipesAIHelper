@@ -4,161 +4,586 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recipe AI Helper - Zarządzanie Przepisami</title>
-    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>Recipe AI Helper</h1>
-            <p>Inteligentne zarządzanie przepisami kulinarymi</p>
-        </header>
-
-        <main>
-            <!-- AI Model Configuration -->
-            <section class="card">
-                <h2>🤖 Konfiguracja Modelu AI</h2>
-                <div style="display: flex; flex-direction: column; gap: 15px; max-width: 600px;">
-                    <div>
-                        <label for="aiModel" style="display: block; margin-bottom: 8px; color: #e0e0e0; font-weight: 600;">
-                            Model OpenAI:
-                        </label>
-                        <select id="aiModelSelect" style="padding: 12px; border-radius: 8px; border: 1px solid #4a4a4a; background: #2a2a2a; color: #e0e0e0; font-size: 1em; width: 100%; max-width: 500px;">
-                            <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07 (Zalecany - 400k context)</option>
-                            <option value="gpt-4o">gpt-4o (Poprzedni)</option>
-                            <option value="gpt-4-turbo">gpt-4-turbo</option>
-                            <option value="gpt-4">gpt-4</option>
-                            <option value="custom">Własny model...</option>
-                        </select>
-                    </div>
-                    <div id="customModelDiv" style="display: none;">
-                        <label for="customModel" style="display: block; margin-bottom: 8px; color: #e0e0e0; font-weight: 600;">
-                            Nazwa własnego modelu:
-                        </label>
-                        <input type="text" id="customModel" placeholder="np. gpt-5-preview" style="padding: 12px; border-radius: 8px; border: 1px solid #4a4a4a; background: #2a2a2a; color: #e0e0e0; font-size: 1em; width: 100%; max-width: 500px;">
-                    </div>
-                    <div>
-                        <button id="saveModelBtn" class="btn btn-success">Zapisz Konfigurację Modelu</button>
-                        <span id="modelStatus" style="margin-left: 15px; color: #9ca3af;"></span>
-                    </div>
-                    <div style="background: #1f1f1f; padding: 15px; border-radius: 8px; border: 1px solid #333; margin-top: 10px;">
-                        <h4 style="color: #ffffff; margin-bottom: 10px;">Informacje o wybranym modelu:</h4>
-                        <div id="modelInfo" style="color: #9ca3af; font-size: 0.95em;">
-                            <p><strong>gpt-5-nano-2025-08-07:</strong></p>
-                            <ul style="margin-left: 20px; margin-top: 5px;">
-                                <li>Context window: 400,000 tokenów</li>
-                                <li>Max output: 128,000 tokenów</li>
-                                <li>Wsparcie reasoning tokens</li>
-                                <li>Zalecane ~30-40 stron PDF na raz</li>
-                            </ul>
-                        </div>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100 min-h-screen" x-data="appData()" x-init="init()">
+    <!-- Header -->
+    <header class="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                        Recipe AI Helper
+                    </h1>
+                    <p class="text-gray-400 text-sm mt-1">Inteligentne zarządzanie przepisami kulinarymi</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div x-show="activeProvider" class="bg-green-900/30 border border-green-600/50 rounded-lg px-4 py-2">
+                        <span class="text-green-400 text-sm font-medium">
+                            <span class="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2"></span>
+                            <span x-text="activeProvider?.name"></span> - <span x-text="activeProvider?.model"></span>
+                        </span>
                     </div>
                 </div>
-            </section>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Tab Navigation -->
+        <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 mb-8">
+            <nav class="flex flex-wrap gap-2 p-2">
+                <button @click="currentTab = 'providers'"
+                        :class="currentTab === 'providers' ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'"
+                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                    🤖 AI Providers
+                </button>
+                <button @click="currentTab = 'processing'"
+                        :class="currentTab === 'processing' ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'"
+                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                    📄 Przetwarzanie
+                </button>
+                <button @click="currentTab = 'database'"
+                        :class="currentTab === 'database' ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'"
+                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                    🗃️ Baza Przepisów
+                </button>
+                <button @click="currentTab = 'settings'"
+                        :class="currentTab === 'settings' ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'"
+                        class="px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                    ⚙️ Ustawienia
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab: AI Providers -->
+        <div x-show="currentTab === 'providers'" x-cloak class="space-y-6">
+            <!-- Quick Guide -->
+            <div class="bg-blue-900/20 border border-blue-600/30 rounded-lg p-6">
+                <h3 class="text-xl font-bold text-white mb-4">📚 Jak skonfigurować Gemini?</h3>
+                <ol class="space-y-3 text-gray-300">
+                    <li class="flex items-start gap-3">
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">1</span>
+                        <span>Kliknij przycisk <strong class="text-white">"➕ Dodaj Nowego Providera"</strong> poniżej</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">2</span>
+                        <span>W polu <strong class="text-white">"Nazwa Providera"</strong> wybierz <strong class="text-green-400">"Gemini"</strong> z listy</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">3</span>
+                        <span>Model automatycznie ustawi się na <strong class="text-white">"gemini-2.5-flash"</strong></span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">4</span>
+                        <span>Wklej <strong class="text-white">API Key</strong> z <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-400 hover:underline">Google AI Studio</a></span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">5</span>
+                        <span>Zaznacz <strong class="text-white">"Ustaw jako aktywny"</strong> ✅</span>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0">6</span>
+                        <span>Kliknij <strong class="text-white">"Zapisz"</strong> - system automatycznie użyje Gemini! 🚀</span>
+                    </li>
+                </ol>
+                <div class="mt-4 p-3 bg-green-900/20 border border-green-600/30 rounded">
+                    <p class="text-sm text-green-400">
+                        <strong>💡 Wskazówka:</strong> System rozpoznaje providera po nazwie. "Gemini" lub "Google" → GeminiService, "OpenAI" → OpenAIService
+                    </p>
+                </div>
+            </div>
+
+            <!-- Add New Provider -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                <h2 class="text-2xl font-bold text-white mb-4">🤖 Zarządzanie AI Providers</h2>
+
+                <button @click="showProviderModal = true; editingProvider = null; resetProviderForm()"
+                        class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 shadow-lg">
+                    ➕ Dodaj Nowego Providera
+                </button>
+
+                <!-- Providers List -->
+                <div class="mt-6 space-y-4">
+                    <template x-for="provider in providers" :key="provider.id">
+                        <div class="bg-gray-900/50 border rounded-lg p-4 transition-all duration-200"
+                             :class="provider.isActive ? 'border-green-500/50 shadow-lg shadow-green-500/10' : 'border-gray-700'">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <h3 class="text-xl font-bold text-white" x-text="provider.name"></h3>
+                                        <span x-show="provider.isActive"
+                                              class="bg-green-900/50 text-green-400 text-xs px-3 py-1 rounded-full border border-green-600/50">
+                                            Aktywny
+                                        </span>
+                                        <span class="bg-gray-700 text-gray-300 text-xs px-3 py-1 rounded-full">
+                                            Priorytet: <span x-text="provider.priority"></span>
+                                        </span>
+                                    </div>
+                                    <div class="space-y-1 text-sm text-gray-400">
+                                        <p><span class="font-medium">Model:</span> <span x-text="provider.model"></span></p>
+                                        <p><span class="font-medium">API Key:</span> <span x-text="provider.apiKey" class="font-mono"></span></p>
+                                        <p><span class="font-medium">Max stron/chunk:</span> <span x-text="provider.maxPagesPerChunk"></span></p>
+                                        <p><span class="font-medium">Direct PDF:</span> <span x-text="provider.supportsDirectPDF ? 'Tak' : 'Nie'"></span></p>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button @click="activateProvider(provider.id)"
+                                            x-show="!provider.isActive"
+                                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                                        Aktywuj
+                                    </button>
+                                    <button @click="editProvider(provider)"
+                                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                                        Edytuj
+                                    </button>
+                                    <button @click="deleteProvider(provider.id)"
+                                            x-show="!provider.isActive"
+                                            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                                        Usuń
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="providers.length === 0" class="text-center py-8 text-gray-400">
+                        Brak skonfigurowanych providerów. Dodaj pierwszego używając przycisku powyżej.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Processing -->
+        <div x-show="currentTab === 'processing'" x-cloak class="space-y-6">
+            <!-- PDF Folder Selection -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                <h2 class="text-2xl font-bold text-white mb-4">📁 Wybór Folderu z PDFami</h2>
+                <div class="flex gap-4">
+                    <input type="text" x-model="pdfDirectory"
+                           placeholder="C:\Users\...\Downloads\Dieta"
+                           class="flex-1 bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                    <button @click="changePdfDirectory()"
+                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                        Zmień Folder
+                    </button>
+                </div>
+                <div x-show="dirMessage" x-text="dirMessage"
+                     :class="dirMessageSuccess ? 'bg-green-900/30 border-green-600/50 text-green-400' : 'bg-red-900/30 border-red-600/50 text-red-400'"
+                     class="mt-4 p-4 rounded-lg border"></div>
+            </div>
 
             <!-- PDF File Manager -->
-            <section class="card">
-                <h2>📄 Zarządzanie Plikami PDF</h2>
-                <div class="file-selector">
-                    <div class="file-actions">
-                        <button id="loadFilesBtn" class="btn btn-primary">Załaduj Pliki z Folderu</button>
-                        <button id="selectAllBtn" class="btn btn-secondary">Zaznacz Wszystkie</button>
-                        <button id="deselectAllBtn" class="btn btn-secondary">Odznacz Wszystkie</button>
-                        <button id="processSelectedBtn" class="btn btn-success">Przetwórz Zaznaczone</button>
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                <h2 class="text-2xl font-bold text-white mb-4">📄 Zarządzanie Plikami PDF</h2>
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <button @click="loadPdfFiles()"
+                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                        Załaduj Pliki
+                    </button>
+                    <button @click="selectAllFiles()"
+                            class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                        Zaznacz Wszystkie
+                    </button>
+                    <button @click="deselectAllFiles()"
+                            class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                        Odznacz Wszystkie
+                    </button>
+                    <button @click="processSelectedFiles()"
+                            class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                        Przetwórz Zaznaczone
+                    </button>
+                </div>
+
+                <div x-show="pdfFiles.length > 0" class="text-gray-400 mb-4">
+                    Znaleziono: <span x-text="pdfFiles.length" class="font-bold text-white"></span> plików
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                    <template x-for="(file, index) in pdfFiles" :key="index">
+                        <label class="flex items-center gap-3 bg-gray-900/50 border border-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-900 hover:border-gray-600 transition-all duration-200">
+                            <input type="checkbox" :value="file" x-model="selectedPdfFiles"
+                                   class="w-5 h-5 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-2 focus:ring-blue-500">
+                            <span class="text-sm text-gray-300 truncate" x-text="file"></span>
+                        </label>
+                    </template>
+                </div>
+
+                <div x-show="pdfFiles.length === 0" class="text-center py-8 text-gray-400">
+                    Kliknij "Załaduj Pliki" aby zobaczyć dostępne pliki PDF
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Database -->
+        <div x-show="currentTab === 'database'" x-cloak class="space-y-6">
+            <!-- Search and Actions -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                <h2 class="text-2xl font-bold text-white mb-4">🗃️ Baza Przepisów</h2>
+                <div class="flex gap-4 mb-4">
+                    <input type="text" x-model="searchQuery" @input="filterRecipes()"
+                           placeholder="Szukaj przepisu..."
+                           class="flex-1 bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                    <button @click="loadRecipes()"
+                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                        Odśwież
+                    </button>
+                </div>
+                <div class="text-gray-400 text-sm">
+                    Znaleziono: <span x-text="filteredRecipes.length" class="font-bold text-white"></span> przepisów
+                </div>
+            </div>
+
+            <!-- Recipe Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <template x-for="recipe in filteredRecipes" :key="recipe.id">
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 overflow-hidden hover:shadow-xl hover:border-gray-600 transition-all duration-200">
+                        <!-- Recipe Image -->
+                        <div class="relative h-48 bg-gray-900/50">
+                            <img x-show="recipe.imageUrl" :src="recipe.imageUrl" :alt="recipe.name"
+                                 class="w-full h-full object-cover">
+                            <div x-show="!recipe.imageUrl"
+                                 class="w-full h-full flex items-center justify-center text-gray-600">
+                                <svg class="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                            </div>
+                            <!-- Image Upload Button Overlay -->
+                            <button @click="selectImageForRecipe(recipe.id)"
+                                    class="absolute bottom-2 right-2 bg-blue-600/90 hover:bg-blue-700 text-white p-2 rounded-lg text-sm transition-all duration-200">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                            </button>
+                            <button x-show="recipe.imageUrl" @click="deleteRecipeImage(recipe.id)"
+                                    class="absolute bottom-2 left-2 bg-red-600/90 hover:bg-red-700 text-white p-2 rounded-lg text-sm transition-all duration-200">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Recipe Content -->
+                        <div class="p-4">
+                            <div class="flex items-start justify-between mb-2">
+                                <h3 class="text-lg font-bold text-white" x-text="recipe.name"></h3>
+                                <span class="bg-blue-900/50 text-blue-400 text-xs px-2 py-1 rounded"
+                                      x-text="getMealTypeName(recipe.mealType)"></span>
+                            </div>
+                            <p class="text-gray-400 text-sm mb-4 line-clamp-2" x-text="recipe.description"></p>
+
+                            <!-- Nutrition Info -->
+                            <div class="grid grid-cols-4 gap-2 mb-4 text-center">
+                                <div class="bg-gray-900/50 rounded p-2">
+                                    <div class="text-xs text-gray-500">Kalorie</div>
+                                    <div class="text-sm font-bold text-white" x-text="recipe.calories"></div>
+                                </div>
+                                <div class="bg-gray-900/50 rounded p-2">
+                                    <div class="text-xs text-gray-500">Białko</div>
+                                    <div class="text-sm font-bold text-white" x-text="recipe.protein + 'g'"></div>
+                                </div>
+                                <div class="bg-gray-900/50 rounded p-2">
+                                    <div class="text-xs text-gray-500">Węgl.</div>
+                                    <div class="text-sm font-bold text-white" x-text="recipe.carbohydrates + 'g'"></div>
+                                </div>
+                                <div class="bg-gray-900/50 rounded p-2">
+                                    <div class="text-xs text-gray-500">Tłuszcze</div>
+                                    <div class="text-sm font-bold text-white" x-text="recipe.fat + 'g'"></div>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="flex gap-2">
+                                <button @click="viewRecipeDetails(recipe)"
+                                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                                    Szczegóły
+                                </button>
+                                <button @click="editRecipe(recipe)"
+                                        class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                                    Edytuj
+                                </button>
+                                <button @click="deleteRecipe(recipe.id)"
+                                        class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200">
+                                    Usuń
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div id="fileList" class="file-list"></div>
+                </template>
+            </div>
+
+            <div x-show="filteredRecipes.length === 0" class="text-center py-12 text-gray-400">
+                Brak przepisów w bazie. Przetwórz pliki PDF aby dodać przepisy.
+            </div>
+        </div>
+
+        <!-- Tab: Settings -->
+        <div x-show="currentTab === 'settings'" x-cloak class="space-y-6">
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                <h2 class="text-2xl font-bold text-white mb-4">⚙️ Ustawienia</h2>
+                <div class="text-gray-400">
+                    Panel ustawień zostanie dodany wkrótce.
                 </div>
-            </section>
+            </div>
+        </div>
+    </main>
 
-            <!-- Database Manager -->
-            <section class="card">
-                <h2>🗃️ Zarządzanie Bazą Danych</h2>
-                <div class="file-actions">
-                    <button id="loadDatabaseBtn" class="btn btn-primary">Załaduj Przepisy z Bazy</button>
-                    <button id="refreshDbBtn" class="btn btn-secondary">Odśwież</button>
-                    <input type="text" id="searchDb" placeholder="Szukaj przepisu..." style="padding: 10px; border-radius: 8px; border: 1px solid #4a4a4a; background: #2a2a2a; color: #e0e0e0; margin-right: 10px;">
-                </div>
-                <div id="databaseViewer" class="db-viewer"></div>
-            </section>
+    <!-- Provider Modal -->
+    <div x-show="showProviderModal" x-cloak
+         class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+         @click.self="showProviderModal = false">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <h3 class="text-2xl font-bold text-white mb-6"
+                    x-text="editingProvider ? 'Edytuj Providera' : 'Dodaj Nowego Providera'"></h3>
 
-            <!-- Daily Meal Plan -->
-            <section class="card">
-                <h2>📅 Plan Posiłków na Dziś</h2>
-                <button id="generateDailyBtn" class="btn btn-primary">Generuj Losowy Plan</button>
-                <div id="dailyPlan" class="meal-plan"></div>
-            </section>
+                <form @submit.prevent="saveProvider()" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Nazwa Providera</label>
+                            <select x-model="providerForm.name" required
+                                    @change="updateModelSuggestion()"
+                                    class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                                <option value="">-- Wybierz providera --</option>
+                                <option value="OpenAI">OpenAI</option>
+                                <option value="Gemini">Gemini (Google AI Studio)</option>
+                                <option value="Google">Google (alias dla Gemini)</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Nazwa określa który serwis AI będzie użyty</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Model</label>
+                            <input type="text" x-model="providerForm.model" required
+                                   placeholder="np. gpt-4o, gemini-2.5-flash"
+                                   class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                            <p class="text-xs text-gray-400 mt-1" x-text="getModelHint()"></p>
+                        </div>
+                    </div>
 
-            <!-- Weekly Meal Plan -->
-            <section class="card">
-                <h2>📆 Tygodniowy Plan Posiłków</h2>
-                <div class="week-selector">
-                    <label for="startDate">Data Rozpoczęcia:</label>
-                    <input type="date" id="startDate">
-                    <button id="generateWeeklyBtn" class="btn btn-primary">Generuj Plan Tygodniowy</button>
-                    <button id="printWeeklyBtn" class="btn btn-secondary">Wydrukuj Plan</button>
-                </div>
-                <div id="weeklyPlan" class="meal-plan"></div>
-            </section>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">API Key</label>
+                        <input type="text" x-model="providerForm.apiKey" required
+                               class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                    </div>
 
-            <!-- Shopping List -->
-            <section class="card">
-                <h2>🛒 Lista Zakupów</h2>
-                <button id="generateShoppingListBtn" class="btn btn-primary">Generuj z Planu Tygodniowego</button>
-                <button id="exportTodoistBtn" class="btn btn-success">Eksportuj do Todoist</button>
-                <div id="shoppingList" class="shopping-list"></div>
-            </section>
-        </main>
-    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Priorytet</label>
+                            <input type="number" x-model="providerForm.priority" required
+                                   class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Max stron/chunk</label>
+                            <input type="number" x-model="providerForm.maxPagesPerChunk" required
+                                   class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                        </div>
+                    </div>
 
-    <!-- Edit Recipe Modal -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Edytuj Przepis</h2>
-            <form id="editForm">
-                <input type="hidden" id="editRecipeId">
+                    <div class="flex items-center gap-6">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" x-model="providerForm.supportsDirectPDF"
+                                   class="w-5 h-5 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-2 focus:ring-blue-500">
+                            <span class="text-sm text-gray-300">Obsługuje bezpośrednie PDF</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" x-model="providerForm.isActive"
+                                   class="w-5 h-5 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-2 focus:ring-blue-500">
+                            <span class="text-sm text-gray-300">Ustaw jako aktywny</span>
+                        </label>
+                    </div>
 
-                <label for="editName">Nazwa:</label>
-                <input type="text" id="editName" required>
+                    <!-- Help section -->
+                    <div class="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4 text-sm text-gray-300">
+                        <h4 class="text-white font-medium mb-2">Przykładowe konfiguracje:</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <strong class="text-blue-400">OpenAI:</strong>
+                                <ul class="ml-4 mt-1 space-y-1 list-disc list-inside">
+                                    <li>Nazwa: OpenAI</li>
+                                    <li>Model: gpt-4o lub gpt-4-turbo</li>
+                                    <li>API Key: sk-...</li>
+                                    <li>Max stron/chunk: 3-5</li>
+                                    <li>Obsługuje PDF: Tak</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <strong class="text-green-400">Google Gemini (AI Studio):</strong>
+                                <ul class="ml-4 mt-1 space-y-1 list-disc list-inside">
+                                    <li>Nazwa: Gemini (lub Google)</li>
+                                    <li>Model: gemini-2.5-flash lub gemini-1.5-pro</li>
+                                    <li>API Key: uzyskaj z <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-400 hover:underline">Google AI Studio</a></li>
+                                    <li>Max stron/chunk: 100 (duży context window)</li>
+                                    <li>Obsługuje PDF: W trakcie implementacji</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-xs text-gray-400">
+                            <strong>Uwaga:</strong> Dla Gemini wymagany jest tylko API Key z Google AI Studio.
+                            Dodatkowe zmienne (PROJECT_ID, REGION, ACCESS_TOKEN) są tylko dla Vertex AI w Google Cloud.
+                        </p>
+                    </div>
 
-                <label for="editDescription">Opis:</label>
-                <textarea id="editDescription"></textarea>
-
-                <label for="editCategory">Kategoria:</label>
-                <select id="editCategory" required>
-                    <option value="Sniadanie">Śniadanie</option>
-                    <option value="Obiad">Obiad</option>
-                    <option value="Kolacja">Kolacja</option>
-                    <option value="Deser">Deser</option>
-                    <option value="Napoj">Napój</option>
-                </select>
-
-                <label for="editIngredients">Składniki (jeden na linię):</label>
-                <textarea id="editIngredients" required></textarea>
-
-                <label for="editInstructions">Sposób wykonania:</label>
-                <textarea id="editInstructions" required></textarea>
-
-                <label for="editCalories">Kalorie:</label>
-                <input type="number" id="editCalories" required>
-
-                <label for="editProtein">Białko (g):</label>
-                <input type="number" step="0.1" id="editProtein" required>
-
-                <label for="editCarbs">Węglowodany (g):</label>
-                <input type="number" step="0.1" id="editCarbs" required>
-
-                <label for="editFat">Tłuszcze (g):</label>
-                <input type="number" step="0.1" id="editFat" required>
-
-                <div style="margin-top: 20px; display: flex; gap: 10px;">
-                    <button type="submit" class="btn btn-success">Zapisz Zmiany</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Anuluj</button>
-                </div>
-            </form>
+                    <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-700">
+                        <button type="button" @click="showProviderModal = false"
+                                class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200">
+                            Anuluj
+                        </button>
+                        <button type="submit"
+                                class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200">
+                            Zapisz
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
-    <div id="printArea" class="print-only"></div>
+    <!-- Recipe Details Modal -->
+    <div x-show="showRecipeModal" x-cloak
+         class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+         @click.self="showRecipeModal = false">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6" x-show="selectedRecipe">
+                <div class="flex items-start justify-between mb-6">
+                    <h3 class="text-2xl font-bold text-white" x-text="selectedRecipe?.name"></h3>
+                    <button @click="showRecipeModal = false"
+                            class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Recipe Image -->
+                    <div x-show="selectedRecipe?.imageUrl" class="rounded-lg overflow-hidden">
+                        <img :src="selectedRecipe?.imageUrl" :alt="selectedRecipe?.name"
+                             class="w-full h-64 object-cover">
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <h4 class="text-lg font-bold text-white mb-2">Opis</h4>
+                        <p class="text-gray-300" x-text="selectedRecipe?.description"></p>
+                    </div>
+
+                    <!-- Nutrition -->
+                    <div>
+                        <h4 class="text-lg font-bold text-white mb-3">Wartości odżywcze (porcja)</h4>
+                        <div class="grid grid-cols-4 gap-4">
+                            <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                                <div class="text-gray-400 text-sm mb-1">Kalorie</div>
+                                <div class="text-2xl font-bold text-white" x-text="selectedRecipe?.calories"></div>
+                            </div>
+                            <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                                <div class="text-gray-400 text-sm mb-1">Białko</div>
+                                <div class="text-2xl font-bold text-white" x-text="selectedRecipe?.protein + 'g'"></div>
+                            </div>
+                            <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                                <div class="text-gray-400 text-sm mb-1">Węglowodany</div>
+                                <div class="text-2xl font-bold text-white" x-text="selectedRecipe?.carbohydrates + 'g'"></div>
+                            </div>
+                            <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                                <div class="text-gray-400 text-sm mb-1">Tłuszcze</div>
+                                <div class="text-2xl font-bold text-white" x-text="selectedRecipe?.fat + 'g'"></div>
+                            </div>
+                        </div>
+
+                        <!-- Servings Info -->
+                        <template x-if="selectedRecipe?.servings">
+                            <div class="mt-4">
+                                <div class="inline-block bg-blue-900/30 border border-blue-700 rounded px-3 py-1 text-sm">
+                                    <span class="text-gray-400">Liczba porcji:</span>
+                                    <span class="text-white font-medium ml-1" x-text="selectedRecipe.servings"></span>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Nutrition Variants -->
+                        <template x-if="selectedRecipe?.nutritionVariants && selectedRecipe.nutritionVariants.length > 0">
+                            <div class="mt-6">
+                                <h5 class="text-md font-semibold text-gray-300 mb-3">Dodatkowe warianty:</h5>
+                                <div class="space-y-3">
+                                    <template x-for="variant in selectedRecipe.nutritionVariants" :key="variant.label">
+                                        <div class="bg-gray-900/30 border border-gray-700 rounded-lg p-4">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <h6 class="font-semibold text-white" x-text="variant.label"></h6>
+                                                <span x-show="variant.notes" class="text-xs text-gray-400" x-text="variant.notes"></span>
+                                            </div>
+                                            <div class="grid grid-cols-4 gap-3 text-sm">
+                                                <div>
+                                                    <span class="text-gray-400">Kalorie:</span>
+                                                    <span class="text-white font-medium ml-1" x-text="variant.calories"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-400">Białko:</span>
+                                                    <span class="text-white font-medium ml-1" x-text="variant.protein + 'g'"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-400">Węgl:</span>
+                                                    <span class="text-white font-medium ml-1" x-text="variant.carbohydrates + 'g'"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-400">Tłuszcze:</span>
+                                                    <span class="text-white font-medium ml-1" x-text="variant.fat + 'g'"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Ingredients -->
+                    <div>
+                        <h4 class="text-lg font-bold text-white mb-2">Składniki</h4>
+                        <ul class="list-disc list-inside text-gray-300 space-y-1">
+                            <template x-for="ingredient in selectedRecipe?.ingredients.split('\n')" :key="ingredient">
+                                <li x-text="ingredient"></li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div>
+                        <h4 class="text-lg font-bold text-white mb-2">Sposób przygotowania</h4>
+                        <p class="text-gray-300 whitespace-pre-wrap" x-text="selectedRecipe?.instructions"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for image upload -->
+    <input type="file" id="recipeImageInput" accept="image/*" style="display: none;"
+           @change="uploadRecipeImage($event)">
+
+    <!-- Notifications -->
+    <div class="fixed bottom-4 right-4 z-50 space-y-2">
+        <template x-for="(notification, index) in notifications" :key="index">
+            <div class="bg-gray-800 border rounded-lg shadow-lg p-4 min-w-[300px] animate-slide-up"
+                 :class="notification.type === 'success' ? 'border-green-600' : 'border-red-600'">
+                <div class="flex items-center gap-3">
+                    <div x-show="notification.type === 'success'" class="text-green-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <div x-show="notification.type === 'error'" class="text-red-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </div>
+                    <p class="text-white text-sm" x-text="notification.message"></p>
+                </div>
+            </div>
+        </template>
+    </div>
 
     <script src="app.js"></script>
 </body>

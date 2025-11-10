@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace RecipesAIHelper.Models;
 
 public class Recipe
@@ -8,16 +11,64 @@ public class Recipe
     public string Ingredients { get; set; } = string.Empty;
     public string Instructions { get; set; } = string.Empty;
 
-    // Nutrition information
+    // Nutrition information (default/main values)
     public int Calories { get; set; }
     public double Protein { get; set; }  // in grams
     public double Carbohydrates { get; set; }  // in grams
     public double Fat { get; set; }  // in grams
+    public int? Servings { get; set; }  // number of servings (portions)
+
+    // Nutrition variants (stored as JSON in database)
+    [JsonIgnore]
+    public string? NutritionVariantsJson { get; set; }
+
+    public List<NutritionVariant>? NutritionVariants
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(NutritionVariantsJson))
+                return null;
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<NutritionVariant>>(NutritionVariantsJson);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        set
+        {
+            if (value == null || value.Count == 0)
+            {
+                NutritionVariantsJson = null;
+            }
+            else
+            {
+                NutritionVariantsJson = JsonSerializer.Serialize(value);
+            }
+        }
+    }
 
     // Meal category
     public MealType MealType { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    // Image paths
+    public string? ImagePath { get; set; }
+    public string? ImageUrl { get; set; }
+}
+
+public class NutritionVariant
+{
+    public string Label { get; set; } = string.Empty;  // np. "całość", "na porcję", "z dodatkami"
+    public int Calories { get; set; }
+    public double Protein { get; set; }
+    public double Carbohydrates { get; set; }
+    public double Fat { get; set; }
+    public string? Notes { get; set; }  // opcjonalne uwagi jak "* Same chlebki"
 }
 
 public enum MealType

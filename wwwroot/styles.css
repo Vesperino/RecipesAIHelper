@@ -41,6 +41,85 @@ header p {
     font-weight: 400;
 }
 
+/* Tabs Navigation */
+.tabs-container {
+    background: linear-gradient(135deg, #252525 0%, #1a1a1a 100%);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid #333;
+    overflow: hidden;
+    margin-bottom: 25px;
+}
+
+.tabs-nav {
+    display: flex;
+    background: #1f1f1f;
+    border-bottom: 2px solid #333;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #4a4a4a #1f1f1f;
+}
+
+.tabs-nav::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tabs-nav::-webkit-scrollbar-track {
+    background: #1f1f1f;
+}
+
+.tabs-nav::-webkit-scrollbar-thumb {
+    background: #4a4a4a;
+    border-radius: 3px;
+}
+
+.tab-button {
+    flex: 1;
+    min-width: 150px;
+    padding: 18px 24px;
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    position: relative;
+}
+
+.tab-button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e0e0e0;
+}
+
+.tab-button.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.tab-content {
+    display: none;
+    padding: 30px;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .card {
     background: linear-gradient(135deg, #252525 0%, #1a1a1a 100%);
     padding: 30px;
@@ -445,14 +524,33 @@ header p {
 
 .modal-content {
     background: #1f1f1f;
-    margin: 5% auto;
+    margin: 2% auto;
     padding: 30px;
     border: 1px solid #333;
     border-radius: 12px;
-    width: 90%;
-    max-width: 600px;
+    width: 95%;
+    max-width: 1400px;
+    max-height: 95vh;
+    overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     color: #e0e0e0;
+}
+
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: #4a4a4a;
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #5a5a5a;
 }
 
 .modal-content h2 {
@@ -486,6 +584,35 @@ header p {
 .modal-content textarea {
     min-height: 100px;
     resize: vertical;
+}
+
+/* Form grid for modal */
+.modal-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.modal-form-grid-full {
+    grid-column: 1 / -1;
+}
+
+.modal-nutrition-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+}
+
+@media (max-width: 768px) {
+    .modal-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-nutrition-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .close {

@@ -6,15 +6,15 @@ namespace RecipesAIHelper.Services;
 
 public class PdfProcessorService
 {
-    // Configurable chunk size - domyślnie 10 stron, ale można zwiększyć do 30-40 dla GPT-4o
-    // GPT-4o ma 400k tokenów context window:
+    // Configurable chunk size - domyślnie 3 strony z 1 stroną overlapu
+    // Mniejsze chunki dla lepszej dokładności przy ekstrakcji przepisów
     // - Typowa strona PDF ≈ 1500 znaków ≈ 500 tokenów (polski tekst)
-    // - Bezpiecznie można przetworzyć ~30-40 stron na raz (15k-20k tokenów input)
-    // - Zostawiając miejsce na output (do 50k tokenów dla dużej ilości przepisów)
+    // - 3 strony to ~1500 tokenów input + overlap zapewnia nieprzerwaną ekstrakcję
+    // - Zostawiając dużo miejsca na szczegółowy output
     private readonly int _pagesPerChunk;
     private readonly int _overlapPages;
 
-    public PdfProcessorService(int pagesPerChunk = 10, int overlapPages = 1)
+    public PdfProcessorService(int pagesPerChunk = 3, int overlapPages = 1)
     {
         _pagesPerChunk = pagesPerChunk;
         _overlapPages = overlapPages;

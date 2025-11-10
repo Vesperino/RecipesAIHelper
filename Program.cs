@@ -36,10 +36,8 @@ class Program
             Environment.GetEnvironmentVariable("OPENAI_API_KEY") ??
             string.Empty;
 
-        var openAiModel = builder.Configuration["OpenAI:Model"] ?? "gpt-5-nano-2025-08-07";
+        var openAiModel = builder.Configuration["OpenAI:Model"] ?? "gpt-5-mini-2025-08-07";
         var databasePath = builder.Configuration["Settings:DatabasePath"] ?? "recipes.db";
-        var pagesPerChunk = int.TryParse(builder.Configuration["Settings:PagesPerChunk"], out var ppc) ? ppc : 30;
-        var overlapPages = int.TryParse(builder.Configuration["Settings:OverlapPages"], out var op) ? op : 2;
 
         if (string.IsNullOrEmpty(openAiApiKey) || openAiApiKey == "YOUR_OPENAI_API_KEY_HERE")
         {
@@ -63,14 +61,35 @@ class Program
 
         // Register services
         builder.Services.AddSingleton(new RecipeDbContext(databasePath));
-        builder.Services.AddSingleton(new PdfProcessorService(pagesPerChunk, overlapPages));
-        builder.Services.AddSingleton(new OpenAIService(openAiApiKey, openAiModel));
+        builder.Services.AddSingleton(new PdfImageService());
+        builder.Services.AddSingleton<AIServiceFactory>();
 
         var app = builder.Build();
 
         // Initialize database
         var db = app.Services.GetRequiredService<RecipeDbContext>();
         db.InitializeDatabase();
+
+        // Check if we need to migrate API keys from appsettings.json to database
+        var existingProviders = db.GetAllAIProviders();
+        if (existingProviders.Count == 0 && !string.IsNullOrEmpty(openAiApiKey) && openAiApiKey != "YOUR_OPENAI_API_KEY_HERE")
+        {
+            Console.WriteLine("📋 Migracja klucza OpenAI z appsettings.json do bazy danych...");
+            var openAiProvider = new AIProvider
+            {
+                Name = "OpenAI",
+                ApiKey = openAiApiKey,
+                Model = openAiModel,
+                IsActive = true,
+                Priority = 10,
+                MaxPagesPerChunk = 3,
+                SupportsDirectPDF = true,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+            db.InsertAIProvider(openAiProvider);
+            Console.WriteLine("✅ Klucz OpenAI zmigrowany do bazy danych");
+        }
 
         Console.WriteLine("=== Recipe AI Helper - Web Mode ===");
         Console.WriteLine($"Database: {databasePath}");
@@ -117,8 +136,7 @@ class Program
 
         var databasePath = configuration["Settings:DatabasePath"] ?? "recipes.db";
 
-        var pagesPerChunk = int.TryParse(configuration["Settings:PagesPerChunk"], out var ppc) ? ppc : 30;
-        var overlapPages = int.TryParse(configuration["Settings:OverlapPages"], out var op) ? op : 2;
+        var pagesPerChunk = int.TryParse(configuration["Settings:PagesPerChunk"], out var ppc) ? ppc : 4;
         var delayBetweenChunks = int.TryParse(configuration["Settings:DelayBetweenChunksMs"], out var delay) ? delay : 3000;
         var checkDuplicates = bool.TryParse(configuration["Settings:CheckDuplicates"], out var checkDup) ? checkDup : true;
         var recentRecipesContext = int.TryParse(configuration["Settings:RecentRecipesContext"], out var recentCtx) ? recentCtx : 10;
@@ -133,7 +151,6 @@ class Program
         Console.WriteLine($"Configuration:");
         Console.WriteLine($"  - OpenAI Model: {openAiModel}");
         Console.WriteLine($"  - Pages per chunk: {pagesPerChunk}");
-        Console.WriteLine($"  - Overlap pages: {overlapPages}");
         Console.WriteLine($"  - Delay between chunks: {delayBetweenChunks}ms");
         Console.WriteLine($"  - Check duplicates: {checkDuplicates}");
         Console.WriteLine($"  - Recent recipes context: {recentRecipesContext}");
@@ -159,7 +176,7 @@ class Program
             switch (choice)
             {
                 case "1":
-                    await ProcessPdfs(pdfDirectory, openAiApiKey, openAiModel, pagesPerChunk, overlapPages,
+                    await ProcessPdfs(pdfDirectory, openAiApiKey, openAiModel, pagesPerChunk,
                         delayBetweenChunks, checkDuplicates, recentRecipesContext, db);
                     break;
                 case "2":
@@ -179,23 +196,23 @@ class Program
     }
 
     static async Task ProcessPdfs(string pdfDirectory, string apiKey, string modelName, int pagesPerChunk,
-        int overlapPages, int delayMs, bool checkDuplicates, int recentRecipesContext, RecipeDbContext db)
+        int delayMs, bool checkDuplicates, int recentRecipesContext, RecipeDbContext db)
     {
         Console.WriteLine($"\n{'=',-80}");
-        Console.WriteLine($"ROZPOCZĘCIE PRZETWARZANIA PDF");
+        Console.WriteLine($"ROZPOCZĘCIE PRZETWARZANIA PDF Z VISION API (1200 DPI → 2560px)");
         Console.WriteLine($"{'=',-80}");
         Console.WriteLine($"Folder: {pdfDirectory}");
-        Console.WriteLine($"Chunking: {pagesPerChunk} stron per chunk, {overlapPages} stron overlap");
+        Console.WriteLine($"Chunking: {pagesPerChunk} stron per chunk (render 1200 DPI → scale 2560px)");
         Console.WriteLine($"Rate limiting: {delayMs}ms opóźnienia między chunkami");
         Console.WriteLine($"Sprawdzanie duplikatów: {(checkDuplicates ? "TAK" : "NIE")}");
         Console.WriteLine($"{'=',-80}\n");
 
-        var pdfProcessor = new PdfProcessorService(pagesPerChunk, overlapPages);
+        var pdfImageService = new PdfImageService();
         var openAiService = new OpenAIService(apiKey, modelName);
 
         try
         {
-            var pdfFiles = pdfProcessor.GetAllPdfFiles(pdfDirectory);
+            var pdfFiles = Directory.GetFiles(pdfDirectory, "*.pdf", SearchOption.AllDirectories).ToList();
             Console.WriteLine($"📄 Znaleziono {pdfFiles.Count} plików PDF\n");
 
             if (pdfFiles.Count == 0)
@@ -222,18 +239,21 @@ class Program
 
                 try
                 {
-                    // Extract text from PDF in chunks with overlap
-                    var chunks = pdfProcessor.ExtractTextInChunks(pdfFile);
-                    Console.WriteLine($"📊 PDF podzielony na {chunks.Count} chunków\n");
+                    // Render PDF pages at high DPI (1200) then scale down to 3200px for sharp output
+                    var imageChunks = pdfImageService.RenderPdfInChunks(pdfFile, pagesPerChunk, dpi: 1200, saveDebugImages: true, targetHeight: 3200);
+                    Console.WriteLine($"📊 PDF wyrenderowany w {imageChunks.Count} chunkach (1200 DPI → 3200px wysokość)\n");
 
-                    for (int i = 0; i < chunks.Count; i++)
+                    // Track recipes already processed in THIS PDF to avoid duplicates within chunks
+                    var processedInThisPdf = new List<string>();
+
+                    for (int i = 0; i < imageChunks.Count; i++)
                     {
-                        var chunk = chunks[i];
+                        var imageChunk = imageChunks[i];
 
                         try
                         {
-                            Console.WriteLine($"[Chunk {chunk.ChunkNumber}/{chunks.Count}] Strony {chunk.StartPage}-{chunk.EndPage}");
-                            Console.WriteLine($"  Rozmiar tekstu: {chunk.Text.Length} znaków");
+                            Console.WriteLine($"[Chunk {imageChunk.ChunkNumber}/{imageChunks.Count}] Strony {imageChunk.StartPage}-{imageChunk.EndPage}");
+                            Console.WriteLine($"  Liczba obrazów: {imageChunk.Pages.Count}");
 
                             // Get recent recipes for context (to avoid duplicates)
                             var recentRecipes = checkDuplicates
@@ -245,10 +265,15 @@ class Program
                                 Console.WriteLine($"  Kontekst: {recentRecipes.Count} ostatnich przepisów w bazie");
                             }
 
-                            // Send chunk to OpenAI for recipe extraction
-                            Console.WriteLine($"  ⏳ Wysyłanie do OpenAI ({modelName})...");
+                            if (processedInThisPdf.Count > 0)
+                            {
+                                Console.WriteLine($"  Historia PDF: {processedInThisPdf.Count} przepisów już przetworzonych w tym pliku");
+                            }
+
+                            // Send images to OpenAI Vision API for recipe extraction
+                            Console.WriteLine($"  ⏳ Wysyłanie obrazów do OpenAI Vision API ({modelName})...");
                             var startTime = DateTime.Now;
-                            var recipes = await openAiService.ExtractRecipesFromChunk(chunk, recentRecipes);
+                            var recipes = await openAiService.ExtractRecipesFromImages(imageChunk, recentRecipes, processedInThisPdf);
                             var processingTime = (DateTime.Now - startTime).TotalSeconds;
 
                             Console.WriteLine($"  ✅ Otrzymano {recipes.Count} przepisów (czas: {processingTime:F1}s)");
@@ -305,12 +330,16 @@ class Program
                                         MealType = Enum.TryParse<MealType>(recipeData.MealType, out var mealType)
                                             ? mealType
                                             : MealType.Obiad,
-                                        CreatedAt = DateTime.Now
+                                        CreatedAt = DateTime.Now,
+                                        NutritionVariants = recipeData.NutritionVariants
                                     };
 
                                     db.InsertRecipe(recipe);
                                     Console.WriteLine($"    ✅ Zapisano: {recipe.Name} ({recipe.MealType}) - {recipe.Calories} kcal");
                                     fileRecipesSaved++;
+
+                                    // Add to processed list to prevent duplicates in subsequent chunks
+                                    processedInThisPdf.Add(recipe.Name);
                                 }
                                 catch (Exception ex)
                                 {
@@ -322,11 +351,11 @@ class Program
                             totalChunksProcessed++;
 
                             // Progress indicator
-                            var progress = (float)(i + 1) / chunks.Count * 100;
+                            var progress = (float)(i + 1) / imageChunks.Count * 100;
                             Console.WriteLine($"  📈 Postęp pliku: {progress:F0}%\n");
 
                             // Add delay between chunks to avoid rate limiting
-                            if (i < chunks.Count - 1) // Don't delay after last chunk
+                            if (i < imageChunks.Count - 1)
                             {
                                 Console.WriteLine($"  ⏸️  Oczekiwanie {delayMs}ms przed następnym chunkiem...\n");
                                 await Task.Delay(delayMs);
@@ -334,7 +363,7 @@ class Program
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"  ❌ Błąd przetwarzania chunku {chunk.ChunkNumber}: {ex.Message}");
+                            Console.WriteLine($"  ❌ Błąd przetwarzania chunku {imageChunk.ChunkNumber}: {ex.Message}");
                             if (ex.InnerException != null)
                             {
                                 Console.WriteLine($"     Szczegóły: {ex.InnerException.Message}");
@@ -346,7 +375,7 @@ class Program
                     // File summary
                     Console.WriteLine($"\n{'─',-80}");
                     Console.WriteLine($"✅ Zakończono plik: {Path.GetFileName(pdfFile)}");
-                    Console.WriteLine($"   Chunków przetworzonych: {chunks.Count}");
+                    Console.WriteLine($"   Chunków przetworzonych: {imageChunks.Count}");
                     Console.WriteLine($"   Przepisów wyekstrahowanych: {fileRecipesExtracted}");
                     Console.WriteLine($"   Przepisów zapisanych: {fileRecipesSaved}");
                     Console.WriteLine($"   Duplikatów pominiętych: {fileDuplicatesSkipped}");

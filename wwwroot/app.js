@@ -1,791 +1,574 @@
-// Recipe AI Helper - Enhanced Version
-// Mock data - w produkcji to łączyłoby się z backendem .NET przez API
-let recipesDatabase = [];
-let currentWeeklyPlan = {};
-let availableFiles = [];
-let selectedFiles = [];
+// Recipe AI Helper - Modern Alpine.js Version
 
-// Configuration
-const TODOIST_API_URL = 'https://api.todoist.com/rest/v2/tasks';
-const PDF_FOLDER = 'C:\\Users\\Karolina\\Downloads\\Dieta'; // Domyślny folder
-let currentAIModel = 'gpt-5-nano-2025-08-07'; // Default model
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    // Set default date to today
-    document.getElementById('startDate').valueAsDate = new Date();
-
-    // AI Model Configuration
-    document.getElementById('aiModelSelect').addEventListener('change', onModelSelectChange);
-    document.getElementById('saveModelBtn').addEventListener('click', saveModelConfiguration);
-    loadModelConfiguration();
-
-    // PDF File Management
-    document.getElementById('loadFilesBtn').addEventListener('click', loadPdfFiles);
-    document.getElementById('selectAllBtn').addEventListener('click', selectAllFiles);
-    document.getElementById('deselectAllBtn').addEventListener('click', deselectAllFiles);
-    document.getElementById('processSelectedBtn').addEventListener('click', processSelectedFiles);
-
-    // Database Management
-    document.getElementById('loadDatabaseBtn').addEventListener('click', loadDatabase);
-    document.getElementById('refreshDbBtn').addEventListener('click', refreshDatabase);
-    document.getElementById('searchDb').addEventListener('input', searchDatabase);
-
-    // Meal Planning
-    document.getElementById('generateDailyBtn').addEventListener('click', generateDailyPlan);
-    document.getElementById('generateWeeklyBtn').addEventListener('click', generateWeeklyPlan);
-    document.getElementById('printWeeklyBtn').addEventListener('click', printWeeklyPlan);
-
-    // Shopping List
-    document.getElementById('generateShoppingListBtn').addEventListener('click', generateShoppingList);
-    document.getElementById('exportTodoistBtn').addEventListener('click', exportToTodoist);
-
-    // Modal
-    document.querySelector('.close').addEventListener('click', closeEditModal);
-    document.getElementById('editForm').addEventListener('submit', saveRecipeEdit);
-
-    // Load initial data
-    loadRecipesFromDatabase();
-});
-
-// ============== AI MODEL CONFIGURATION ==============
-
-const MODEL_INFO = {
-    'gpt-5-nano-2025-08-07': {
-        name: 'gpt-5-nano-2025-08-07',
-        context: '400,000 tokenów',
-        output: '128,000 tokenów',
-        reasoning: true,
-        pages: '~30-40 stron PDF na raz',
-        description: 'Najnowszy model z rozszerzonym oknem kontekstu'
-    },
-    'gpt-4o': {
-        name: 'gpt-4o',
-        context: '128,000 tokenów',
-        output: '16,384 tokenów',
-        reasoning: false,
-        pages: '~10-15 stron PDF na raz',
-        description: 'Poprzednia generacja modelu'
-    },
-    'gpt-4-turbo': {
-        name: 'gpt-4-turbo',
-        context: '128,000 tokenów',
-        output: '4,096 tokenów',
-        reasoning: false,
-        pages: '~10-15 stron PDF na raz',
-        description: 'Szybsza wersja GPT-4'
-    },
-    'gpt-4': {
-        name: 'gpt-4',
-        context: '8,192 tokenów',
-        output: '4,096 tokenów',
-        reasoning: false,
-        pages: '~5-8 stron PDF na raz',
-        description: 'Standardowy model GPT-4'
-    }
+// Meal type mapping (matching C# MealType enum)
+const MEAL_TYPE_NAMES = {
+    0: 'Śniadanie',
+    1: 'Obiad',
+    2: 'Kolacja',
+    3: 'Deser',
+    4: 'Napój',
+    'Sniadanie': 'Śniadanie',
+    'Obiad': 'Obiad',
+    'Kolacja': 'Kolacja',
+    'Deser': 'Deser',
+    'Napoj': 'Napój'
 };
 
-function loadModelConfiguration() {
-    // Load from localStorage
-    const savedModel = localStorage.getItem('aiModel');
-    const savedCustomModel = localStorage.getItem('customAiModel');
+function appData() {
+    return {
+        // Current state
+        currentTab: 'providers',
 
-    if (savedModel) {
-        currentAIModel = savedModel;
-        document.getElementById('aiModelSelect').value = savedModel;
+        // AI Providers
+        providers: [],
+        activeProvider: null,
+        showProviderModal: false,
+        editingProvider: null,
+        providerForm: {
+            name: '',
+            apiKey: '',
+            model: '',
+            isActive: false,
+            priority: 10,
+            maxPagesPerChunk: 3,
+            supportsDirectPDF: false
+        },
 
-        if (savedModel === 'custom' && savedCustomModel) {
-            document.getElementById('customModel').value = savedCustomModel;
-            document.getElementById('customModelDiv').style.display = 'block';
-        }
-    }
+        // PDF Processing
+        pdfDirectory: '',
+        pdfFiles: [],
+        selectedPdfFiles: [],
+        dirMessage: '',
+        dirMessageSuccess: false,
 
-    updateModelInfo();
-}
+        // Recipes
+        recipes: [],
+        filteredRecipes: [],
+        searchQuery: '',
+        selectedRecipe: null,
+        showRecipeModal: false,
+        currentRecipeIdForImage: null,
 
-function onModelSelectChange() {
-    const selectElement = document.getElementById('aiModelSelect');
-    const customModelDiv = document.getElementById('customModelDiv');
-    const selectedValue = selectElement.value;
+        // Notifications
+        notifications: [],
 
-    if (selectedValue === 'custom') {
-        customModelDiv.style.display = 'block';
-    } else {
-        customModelDiv.style.display = 'none';
-    }
+        // Initialization
+        async init() {
+            await this.loadProviders();
+            await this.loadActiveProvider();
+            await this.loadRecipes();
+            await this.loadCurrentDirectory();
 
-    updateModelInfo();
-}
+            // Restore last tab from localStorage
+            const lastTab = localStorage.getItem('selectedTab');
+            if (lastTab) {
+                this.currentTab = lastTab;
+            }
+        },
 
-function updateModelInfo() {
-    const selectElement = document.getElementById('aiModelSelect');
-    const selectedValue = selectElement.value;
-    const modelInfoDiv = document.getElementById('modelInfo');
+        // ============== AI PROVIDERS ==============
 
-    if (selectedValue === 'custom') {
-        modelInfoDiv.innerHTML = `
-            <p><strong>Własny model:</strong></p>
-            <ul style="margin-left: 20px; margin-top: 5px;">
-                <li>Wprowadź nazwę modelu zgodną z OpenAI API</li>
-                <li>Upewnij się, że masz dostęp do tego modelu</li>
-                <li>Parametry zależą od wybranego modelu</li>
-            </ul>
-        `;
-    } else {
-        const info = MODEL_INFO[selectedValue];
-        if (info) {
-            modelInfoDiv.innerHTML = `
-                <p><strong>${info.name}:</strong></p>
-                <ul style="margin-left: 20px; margin-top: 5px;">
-                    <li>Context window: ${info.context}</li>
-                    <li>Max output: ${info.output}</li>
-                    ${info.reasoning ? '<li>Wsparcie reasoning tokens</li>' : ''}
-                    <li>Zalecane ${info.pages}</li>
-                    <li>${info.description}</li>
-                </ul>
-            `;
-        }
-    }
-}
+        async loadProviders() {
+            try {
+                const response = await fetch('/api/aiproviders');
+                if (!response.ok) throw new Error('Failed to load providers');
+                this.providers = await response.json();
+            } catch (error) {
+                console.error('Error loading providers:', error);
+                this.showNotification('Błąd ładowania providerów: ' + error.message, 'error');
+            }
+        },
 
-async function saveModelConfiguration() {
-    const selectElement = document.getElementById('aiModelSelect');
-    const selectedValue = selectElement.value;
-    const statusSpan = document.getElementById('modelStatus');
+        async loadActiveProvider() {
+            try {
+                const response = await fetch('/api/aiproviders/active');
+                if (response.ok) {
+                    this.activeProvider = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading active provider:', error);
+            }
+        },
 
-    let modelToSave = selectedValue;
+        resetProviderForm() {
+            this.providerForm = {
+                name: '',
+                apiKey: '',
+                model: '',
+                isActive: false,
+                priority: 10,
+                maxPagesPerChunk: 3,
+                supportsDirectPDF: false
+            };
+        },
 
-    if (selectedValue === 'custom') {
-        const customModel = document.getElementById('customModel').value.trim();
+        updateModelSuggestion() {
+            // Auto-suggest model and settings based on provider name
+            if (this.providerForm.name === 'OpenAI') {
+                if (!this.providerForm.model || this.editingProvider) {
+                    this.providerForm.model = 'gpt-4o';
+                }
+                this.providerForm.maxPagesPerChunk = 3;
+                this.providerForm.supportsDirectPDF = true;
+            } else if (this.providerForm.name === 'Gemini' || this.providerForm.name === 'Google') {
+                if (!this.providerForm.model || this.editingProvider) {
+                    this.providerForm.model = 'gemini-2.5-flash';
+                }
+                // UWAGA: Gemini ma duży context window (1M tokenów)
+                // Może przetwarzać więcej stron na raz
+                this.providerForm.maxPagesPerChunk = 100;
+                // UWAGA: Direct PDF w trakcie implementacji
+                // Aktualnie Gemini używa konwersji PDF → obrazy
+                this.providerForm.supportsDirectPDF = false;
+            }
+        },
 
-        if (!customModel) {
-            statusSpan.style.color = '#ef4444';
-            statusSpan.textContent = 'Wprowadź nazwę własnego modelu!';
-            setTimeout(() => { statusSpan.textContent = ''; }, 3000);
-            return;
-        }
+        getModelHint() {
+            if (this.providerForm.name === 'OpenAI') {
+                return 'Sugerowane: gpt-4o, gpt-4-turbo, gpt-4';
+            } else if (this.providerForm.name === 'Gemini' || this.providerForm.name === 'Google') {
+                return 'Sugerowane: gemini-2.5-flash, gemini-1.5-pro';
+            }
+            return 'Wprowadź nazwę modelu';
+        },
 
-        localStorage.setItem('customAiModel', customModel);
-        currentAIModel = customModel;
-    } else {
-        currentAIModel = selectedValue;
-        localStorage.removeItem('customAiModel');
-    }
+        editProvider(provider) {
+            this.editingProvider = provider;
+            this.providerForm = {
+                name: provider.name,
+                apiKey: provider.apiKey === '***' ? '' : provider.apiKey,
+                model: provider.model,
+                isActive: provider.isActive,
+                priority: provider.priority,
+                maxPagesPerChunk: provider.maxPagesPerChunk,
+                supportsDirectPDF: provider.supportsDirectPDF
+            };
+            this.showProviderModal = true;
+        },
 
-    // Save to localStorage
-    localStorage.setItem('aiModel', selectedValue);
+        async saveProvider() {
+            try {
+                let response;
 
-    // W produkcji: API call do backendu aby zapisać w konfiguracji/bazie
-    // await fetch('/api/settings/model', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ model: currentAIModel })
-    // });
+                if (this.editingProvider) {
+                    // Update existing provider
+                    const updateData = {
+                        name: this.providerForm.name,
+                        model: this.providerForm.model,
+                        priority: parseInt(this.providerForm.priority),
+                        maxPagesPerChunk: parseInt(this.providerForm.maxPagesPerChunk),
+                        supportsDirectPDF: this.providerForm.supportsDirectPDF,
+                        isActive: this.providerForm.isActive
+                    };
 
-    statusSpan.style.color = '#22c55e';
-    statusSpan.textContent = `✓ Zapisano: ${currentAIModel}`;
+                    // Only include API key if it was changed
+                    if (this.providerForm.apiKey && this.providerForm.apiKey !== '***') {
+                        updateData.apiKey = this.providerForm.apiKey;
+                    }
 
-    setTimeout(() => {
-        statusSpan.textContent = '';
-    }, 3000);
-}
-
-// ============== FILE MANAGEMENT ==============
-
-async function loadPdfFiles() {
-    const fileListDiv = document.getElementById('fileList');
-    fileListDiv.innerHTML = '<p class="loading">Ładowanie listy plików...</p>';
-
-    try {
-        const response = await fetch('/api/files/list');
-        if (!response.ok) throw new Error('Failed to load files');
-
-        availableFiles = await response.json();
-        renderFileList();
-    } catch (error) {
-        fileListDiv.innerHTML = `<p class="loading" style="color: #ef4444;">Błąd: ${error.message}</p>`;
-        console.error('Error loading files:', error);
-    }
-}
-
-function renderFileList() {
-    const fileListDiv = document.getElementById('fileList');
-
-    if (availableFiles.length === 0) {
-        fileListDiv.innerHTML = '<p class="loading">Brak plików w folderze</p>';
-        return;
-    }
-
-    let html = '';
-    availableFiles.forEach((file, index) => {
-        const isSelected = selectedFiles.includes(file);
-        html += `
-            <div class="file-item">
-                <input type="checkbox"
-                       id="file-${index}"
-                       ${isSelected ? 'checked' : ''}
-                       onchange="toggleFileSelection('${file}')">
-                <label for="file-${index}">${file}</label>
-            </div>
-        `;
-    });
-
-    fileListDiv.innerHTML = html;
-}
-
-function toggleFileSelection(filename) {
-    const index = selectedFiles.indexOf(filename);
-    if (index > -1) {
-        selectedFiles.splice(index, 1);
-    } else {
-        selectedFiles.push(filename);
-    }
-}
-
-function selectAllFiles() {
-    selectedFiles = [...availableFiles];
-    renderFileList();
-}
-
-function deselectAllFiles() {
-    selectedFiles = [];
-    renderFileList();
-}
-
-async function processSelectedFiles() {
-    if (selectedFiles.length === 0) {
-        alert('Nie zaznaczono żadnych plików!');
-        return;
-    }
-
-    if (!confirm(`Czy na pewno chcesz przetworzyć ${selectedFiles.length} plików?`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/processing/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files: selectedFiles })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to start processing');
-        }
-
-        alert(`Rozpoczęto przetwarzanie ${selectedFiles.length} plików!\n\nPrzetwarzanie odbywa się w tle. Możesz monitorować postęp w konsoli serwera.`);
-
-        // Start monitoring processing status
-        startStatusMonitoring();
-    } catch (error) {
-        alert(`Błąd: ${error.message}`);
-        console.error('Error starting processing:', error);
-    }
-}
-
-let statusInterval = null;
-
-function startStatusMonitoring() {
-    if (statusInterval) clearInterval(statusInterval);
-
-    statusInterval = setInterval(async () => {
-        try {
-            const response = await fetch('/api/processing/status');
-            const status = await response.json();
-
-            if (!status.isRunning && statusInterval) {
-                clearInterval(statusInterval);
-                statusInterval = null;
-
-                if (status.errors === 0) {
-                    alert(`Przetwarzanie zakończone!\n\nZapisano: ${status.recipesSaved} przepisów\nPominięto duplikatów: ${status.duplicatesSkipped}`);
+                    response = await fetch(`/api/aiproviders/${this.editingProvider.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updateData)
+                    });
                 } else {
-                    alert(`Przetwarzanie zakończone z błędami!\n\nZapisano: ${status.recipesSaved}\nBłędy: ${status.errors}\n\nOstatni błąd: ${status.lastError}`);
+                    // Create new provider
+                    response = await fetch('/api/aiproviders', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: this.providerForm.name,
+                            apiKey: this.providerForm.apiKey,
+                            model: this.providerForm.model,
+                            isActive: this.providerForm.isActive,
+                            priority: parseInt(this.providerForm.priority),
+                            maxPagesPerChunk: parseInt(this.providerForm.maxPagesPerChunk),
+                            supportsDirectPDF: this.providerForm.supportsDirectPDF
+                        })
+                    });
                 }
 
-                // Refresh database view
-                loadDatabase();
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to save provider');
+                }
+
+                this.showNotification(
+                    this.editingProvider ? 'Provider zaktualizowany!' : 'Provider dodany!',
+                    'success'
+                );
+
+                this.showProviderModal = false;
+                await this.loadProviders();
+                await this.loadActiveProvider();
+            } catch (error) {
+                console.error('Error saving provider:', error);
+                this.showNotification('Błąd zapisu: ' + error.message, 'error');
             }
-        } catch (error) {
-            console.error('Error checking status:', error);
+        },
+
+        async activateProvider(id) {
+            try {
+                const response = await fetch(`/api/aiproviders/${id}/activate`, {
+                    method: 'PUT'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to activate provider');
+                }
+
+                this.showNotification('Provider aktywowany!', 'success');
+                await this.loadProviders();
+                await this.loadActiveProvider();
+            } catch (error) {
+                console.error('Error activating provider:', error);
+                this.showNotification('Błąd aktywacji: ' + error.message, 'error');
+            }
+        },
+
+        async deleteProvider(id) {
+            if (!confirm('Czy na pewno chcesz usunąć tego providera?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/aiproviders/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete provider');
+                }
+
+                this.showNotification('Provider usunięty!', 'success');
+                await this.loadProviders();
+            } catch (error) {
+                console.error('Error deleting provider:', error);
+                this.showNotification('Błąd usuwania: ' + error.message, 'error');
+            }
+        },
+
+        // ============== PDF PROCESSING ==============
+
+        async loadCurrentDirectory() {
+            try {
+                const response = await fetch('/api/files/directory');
+                if (!response.ok) throw new Error('Failed to load directory');
+
+                const data = await response.json();
+                this.pdfDirectory = data.directory;
+            } catch (error) {
+                console.error('Error loading directory:', error);
+            }
+        },
+
+        async changePdfDirectory() {
+            if (!this.pdfDirectory.trim()) {
+                this.dirMessage = 'Ścieżka nie może być pusta!';
+                this.dirMessageSuccess = false;
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/files/directory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ directory: this.pdfDirectory })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to change directory');
+                }
+
+                this.dirMessage = data.message;
+                this.dirMessageSuccess = true;
+                this.pdfFiles = [];
+                this.selectedPdfFiles = [];
+
+                setTimeout(() => {
+                    this.dirMessage = '';
+                }, 5000);
+            } catch (error) {
+                this.dirMessage = error.message;
+                this.dirMessageSuccess = false;
+                console.error('Error changing directory:', error);
+            }
+        },
+
+        async loadPdfFiles() {
+            try {
+                const response = await fetch('/api/files/list');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to load files');
+                }
+
+                const data = await response.json();
+                this.pdfFiles = data.files || [];
+                this.showNotification(`Znaleziono ${this.pdfFiles.length} plików`, 'success');
+            } catch (error) {
+                console.error('Error loading files:', error);
+                this.showNotification('Błąd ładowania plików: ' + error.message, 'error');
+            }
+        },
+
+        selectAllFiles() {
+            this.selectedPdfFiles = [...this.pdfFiles];
+        },
+
+        deselectAllFiles() {
+            this.selectedPdfFiles = [];
+        },
+
+        async processSelectedFiles() {
+            if (this.selectedPdfFiles.length === 0) {
+                this.showNotification('Nie zaznaczono żadnych plików!', 'error');
+                return;
+            }
+
+            if (!confirm(`Czy na pewno chcesz przetworzyć ${this.selectedPdfFiles.length} plików?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/processing/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: this.selectedPdfFiles })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to start processing');
+                }
+
+                this.showNotification(
+                    `Rozpoczęto przetwarzanie ${this.selectedPdfFiles.length} plików!`,
+                    'success'
+                );
+
+                // Start monitoring processing status
+                this.startStatusMonitoring();
+            } catch (error) {
+                console.error('Error starting processing:', error);
+                this.showNotification('Błąd przetwarzania: ' + error.message, 'error');
+            }
+        },
+
+        statusInterval: null,
+
+        startStatusMonitoring() {
+            if (this.statusInterval) clearInterval(this.statusInterval);
+
+            this.statusInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/processing/status');
+                    const status = await response.json();
+
+                    if (!status.isRunning && this.statusInterval) {
+                        clearInterval(this.statusInterval);
+                        this.statusInterval = null;
+
+                        if (status.errors === 0) {
+                            this.showNotification(
+                                `Przetwarzanie zakończone! Zapisano: ${status.recipesSaved} przepisów`,
+                                'success'
+                            );
+                        } else {
+                            this.showNotification(
+                                `Przetwarzanie zakończone z błędami. Zapisano: ${status.recipesSaved}`,
+                                'error'
+                            );
+                        }
+
+                        // Refresh recipes
+                        await this.loadRecipes();
+                    }
+                } catch (error) {
+                    console.error('Error checking status:', error);
+                }
+            }, 5000); // Check every 5 seconds
+        },
+
+        // ============== RECIPES ==============
+
+        async loadRecipes() {
+            try {
+                const response = await fetch('/api/recipes');
+                if (!response.ok) throw new Error('Failed to load recipes');
+
+                this.recipes = await response.json();
+                this.filterRecipes();
+            } catch (error) {
+                console.error('Error loading recipes:', error);
+                this.showNotification('Błąd ładowania przepisów: ' + error.message, 'error');
+            }
+        },
+
+        filterRecipes() {
+            if (!this.searchQuery.trim()) {
+                this.filteredRecipes = this.recipes;
+                return;
+            }
+
+            const query = this.searchQuery.toLowerCase();
+            this.filteredRecipes = this.recipes.filter(recipe =>
+                recipe.name.toLowerCase().includes(query) ||
+                recipe.description.toLowerCase().includes(query) ||
+                this.getMealTypeName(recipe.mealType).toLowerCase().includes(query)
+            );
+        },
+
+        getMealTypeName(mealType) {
+            if (typeof mealType === 'number') {
+                return MEAL_TYPE_NAMES[mealType] || mealType;
+            }
+            return MEAL_TYPE_NAMES[mealType] || mealType;
+        },
+
+        viewRecipeDetails(recipe) {
+            this.selectedRecipe = recipe;
+            this.showRecipeModal = true;
+        },
+
+        editRecipe(recipe) {
+            // TODO: Implement recipe editing
+            this.showNotification('Edycja przepisów będzie dostępna wkrótce', 'error');
+        },
+
+        async deleteRecipe(id) {
+            const recipe = this.recipes.find(r => r.id === id);
+            if (!recipe) return;
+
+            if (!confirm(`Czy na pewno chcesz usunąć przepis "${recipe.name}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/recipes/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete recipe');
+                }
+
+                this.showNotification('Przepis usunięty!', 'success');
+                await this.loadRecipes();
+            } catch (error) {
+                console.error('Error deleting recipe:', error);
+                this.showNotification('Błąd usuwania: ' + error.message, 'error');
+            }
+        },
+
+        // ============== RECIPE IMAGES ==============
+
+        selectImageForRecipe(recipeId) {
+            this.currentRecipeIdForImage = recipeId;
+            document.getElementById('recipeImageInput').click();
+        },
+
+        async uploadRecipeImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const recipeId = this.currentRecipeIdForImage;
+            if (!recipeId) return;
+
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch(`/api/recipes/${recipeId}/image`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to upload image');
+                }
+
+                const result = await response.json();
+                this.showNotification('Zdjęcie przesłane!', 'success');
+
+                // Update recipe in local state
+                const recipe = this.recipes.find(r => r.id === recipeId);
+                if (recipe) {
+                    recipe.imageUrl = result.imageUrl;
+                }
+                this.filterRecipes();
+
+                // Clear file input
+                event.target.value = '';
+                this.currentRecipeIdForImage = null;
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                this.showNotification('Błąd uploadu: ' + error.message, 'error');
+            }
+        },
+
+        async deleteRecipeImage(recipeId) {
+            if (!confirm('Czy na pewno chcesz usunąć zdjęcie tego przepisu?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/recipes/${recipeId}/image`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete image');
+                }
+
+                this.showNotification('Zdjęcie usunięte!', 'success');
+
+                // Update recipe in local state
+                const recipe = this.recipes.find(r => r.id === recipeId);
+                if (recipe) {
+                    recipe.imageUrl = null;
+                    recipe.imagePath = null;
+                }
+                this.filterRecipes();
+            } catch (error) {
+                console.error('Error deleting image:', error);
+                this.showNotification('Błąd usuwania: ' + error.message, 'error');
+            }
+        },
+
+        // ============== NOTIFICATIONS ==============
+
+        showNotification(message, type = 'success') {
+            const notification = { message, type };
+            this.notifications.push(notification);
+
+            setTimeout(() => {
+                const index = this.notifications.indexOf(notification);
+                if (index > -1) {
+                    this.notifications.splice(index, 1);
+                }
+            }, 5000);
         }
-    }, 5000); // Check every 5 seconds
-}
-
-// ============== DATABASE MANAGEMENT ==============
-
-async function loadRecipesFromDatabase() {
-    try {
-        const response = await fetch('/api/recipes');
-        if (!response.ok) throw new Error('Failed to load recipes');
-
-        recipesDatabase = await response.json();
-    } catch (error) {
-        console.error('Error loading recipes:', error);
-        recipesDatabase = [];
-    }
-}
-
-async function loadDatabase() {
-    const viewerDiv = document.getElementById('databaseViewer');
-    viewerDiv.innerHTML = '<p class="loading">Ładowanie przepisów z bazy...</p>';
-
-    try {
-        const response = await fetch('/api/recipes');
-        if (!response.ok) throw new Error('Failed to load recipes');
-
-        recipesDatabase = await response.json();
-        renderDatabaseTable(recipesDatabase);
-    } catch (error) {
-        viewerDiv.innerHTML = `<p class="loading" style="color: #ef4444;">Błąd: ${error.message}</p>`;
-        console.error('Error loading recipes:', error);
-    }
-}
-
-function refreshDatabase() {
-    loadDatabase();
-}
-
-function renderDatabaseTable(recipes) {
-    const viewerDiv = document.getElementById('databaseViewer');
-
-    if (recipes.length === 0) {
-        viewerDiv.innerHTML = '<p class="loading">Baza danych jest pusta. Przetwórz pliki PDF aby dodać przepisy.</p>';
-        return;
-    }
-
-    let html = `
-        <div style="overflow-x: auto;">
-            <table class="recipe-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Nazwa</th>
-                        <th>Kategoria</th>
-                        <th>Kalorie</th>
-                        <th>Białko</th>
-                        <th>Węgl.</th>
-                        <th>Tłuszcze</th>
-                        <th>Akcje</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-
-    recipes.forEach(recipe => {
-        html += `
-            <tr>
-                <td>${recipe.id}</td>
-                <td>${recipe.name}</td>
-                <td>${recipe.mealType}</td>
-                <td>${recipe.calories}</td>
-                <td>${recipe.protein}g</td>
-                <td>${recipe.carbohydrates}g</td>
-                <td>${recipe.fat}g</td>
-                <td>
-                    <div class="recipe-actions">
-                        <button class="btn btn-warning" onclick="editRecipe(${recipe.id})">Edytuj</button>
-                        <button class="btn btn-danger" onclick="deleteRecipe(${recipe.id})">Usuń</button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    });
-
-    html += `
-                </tbody>
-            </table>
-        </div>
-        <p style="margin-top: 20px; color: #9ca3af;">Łącznie przepisów: ${recipes.length}</p>
-    `;
-
-    viewerDiv.innerHTML = html;
-}
-
-function searchDatabase() {
-    const searchTerm = document.getElementById('searchDb').value.toLowerCase();
-
-    if (!searchTerm) {
-        renderDatabaseTable(recipesDatabase);
-        return;
-    }
-
-    const filtered = recipesDatabase.filter(recipe =>
-        recipe.name.toLowerCase().includes(searchTerm) ||
-        recipe.description.toLowerCase().includes(searchTerm) ||
-        recipe.mealType.toLowerCase().includes(searchTerm)
-    );
-
-    renderDatabaseTable(filtered);
-}
-
-function editRecipe(id) {
-    const recipe = recipesDatabase.find(r => r.id === id);
-    if (!recipe) return;
-
-    document.getElementById('editRecipeId').value = recipe.id;
-    document.getElementById('editName').value = recipe.name;
-    document.getElementById('editDescription').value = recipe.description;
-    document.getElementById('editCategory').value = recipe.mealType;
-    document.getElementById('editIngredients').value = recipe.ingredients.replace(/\n/g, '\n');
-    document.getElementById('editInstructions').value = recipe.instructions;
-    document.getElementById('editCalories').value = recipe.calories;
-    document.getElementById('editProtein').value = recipe.protein;
-    document.getElementById('editCarbs').value = recipe.carbohydrates;
-    document.getElementById('editFat').value = recipe.fat;
-
-    document.getElementById('editModal').style.display = 'block';
-}
-
-function closeEditModal() {
-    document.getElementById('editModal').style.display = 'none';
-}
-
-async function saveRecipeEdit(e) {
-    e.preventDefault();
-
-    const id = parseInt(document.getElementById('editRecipeId').value);
-
-    const updatedRecipe = {
-        name: document.getElementById('editName').value,
-        description: document.getElementById('editDescription').value,
-        mealType: document.getElementById('editCategory').value,
-        ingredients: document.getElementById('editIngredients').value,
-        instructions: document.getElementById('editInstructions').value,
-        calories: parseInt(document.getElementById('editCalories').value),
-        protein: parseFloat(document.getElementById('editProtein').value),
-        carbohydrates: parseFloat(document.getElementById('editCarbs').value),
-        fat: parseFloat(document.getElementById('editFat').value)
     };
+}
 
-    try {
-        const response = await fetch(`/api/recipes/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatedRecipe)
-        });
+// Watch for tab changes and save to localStorage
+document.addEventListener('alpine:initialized', () => {
+    const app = Alpine.$data(document.body);
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Update not yet implemented');
+    // Watch for tab changes
+    let lastTab = app.currentTab;
+    setInterval(() => {
+        if (app.currentTab !== lastTab) {
+            localStorage.setItem('selectedTab', app.currentTab);
+            lastTab = app.currentTab;
         }
-
-        closeEditModal();
-        loadDatabase();
-        alert('Przepis został zaktualizowany!');
-    } catch (error) {
-        alert(`Błąd: ${error.message}`);
-        console.error('Error updating recipe:', error);
-    }
-}
-
-async function deleteRecipe(id) {
-    const recipe = recipesDatabase.find(r => r.id === id);
-    if (!recipe) return;
-
-    if (!confirm(`Czy na pewno chcesz usunąć przepis "${recipe.name}"?`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/recipes/${id}`, { method: 'DELETE' });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Delete not yet implemented');
-        }
-
-        loadDatabase();
-        alert('Przepis został usunięty!');
-    } catch (error) {
-        alert(`Błąd: ${error.message}`);
-        console.error('Error deleting recipe:', error);
-    }
-}
-
-// ============== MEAL PLANNING ==============
-
-function getRandomRecipeByType(mealType) {
-    const recipes = recipesDatabase.filter(r => r.mealType === mealType);
-    if (recipes.length === 0) return null;
-    return recipes[Math.floor(Math.random() * recipes.length)];
-}
-
-function generateDailyPlan() {
-    const breakfast = getRandomRecipeByType('Sniadanie');
-    const lunch = getRandomRecipeByType('Obiad');
-    const dinner = getRandomRecipeByType('Kolacja');
-
-    const dailyPlanDiv = document.getElementById('dailyPlan');
-
-    if (!breakfast || !lunch || !dinner) {
-        dailyPlanDiv.innerHTML = '<p class="loading">Za mało przepisów w bazie! Przetwórz najpierw pliki PDF.</p>';
-        return;
-    }
-
-    const totalCalories = breakfast.calories + lunch.calories + dinner.calories;
-    const totalProtein = breakfast.protein + lunch.protein + dinner.protein;
-    const totalCarbs = breakfast.carbohydrates + lunch.carbohydrates + dinner.carbohydrates;
-    const totalFat = breakfast.fat + lunch.fat + dinner.fat;
-
-    dailyPlanDiv.innerHTML = `
-        <div class="day-plan">
-            <h3>Plan na Dziś</h3>
-
-            <div class="meal">
-                <h4>Śniadanie</h4>
-                <div class="meal-name">${breakfast.name}</div>
-                <p style="color: #9ca3af; margin-top: 5px;">${breakfast.description}</p>
-                <div class="meal-nutrition">
-                    <span class="nutrition-item">Kalorie: ${breakfast.calories} kcal</span>
-                    <span class="nutrition-item">Białko: ${breakfast.protein}g</span>
-                    <span class="nutrition-item">Węglowodany: ${breakfast.carbohydrates}g</span>
-                    <span class="nutrition-item">Tłuszcze: ${breakfast.fat}g</span>
-                </div>
-            </div>
-
-            <div class="meal">
-                <h4>Obiad</h4>
-                <div class="meal-name">${lunch.name}</div>
-                <p style="color: #9ca3af; margin-top: 5px;">${lunch.description}</p>
-                <div class="meal-nutrition">
-                    <span class="nutrition-item">Kalorie: ${lunch.calories} kcal</span>
-                    <span class="nutrition-item">Białko: ${lunch.protein}g</span>
-                    <span class="nutrition-item">Węglowodany: ${lunch.carbohydrates}g</span>
-                    <span class="nutrition-item">Tłuszcze: ${lunch.fat}g</span>
-                </div>
-            </div>
-
-            <div class="meal">
-                <h4>Kolacja</h4>
-                <div class="meal-name">${dinner.name}</div>
-                <p style="color: #9ca3af; margin-top: 5px;">${dinner.description}</p>
-                <div class="meal-nutrition">
-                    <span class="nutrition-item">Kalorie: ${dinner.calories} kcal</span>
-                    <span class="nutrition-item">Białko: ${dinner.protein}g</span>
-                    <span class="nutrition-item">Węglowodany: ${dinner.carbohydrates}g</span>
-                    <span class="nutrition-item">Tłuszcze: ${dinner.fat}g</span>
-                </div>
-            </div>
-
-            <div class="daily-totals">
-                <h3>Dzienne Podsumowanie</h3>
-                <div class="totals-grid">
-                    <div class="total-item">
-                        <span class="value">${totalCalories}</span>
-                        <span class="label">Kalorie</span>
-                    </div>
-                    <div class="total-item">
-                        <span class="value">${totalProtein.toFixed(1)}g</span>
-                        <span class="label">Białko</span>
-                    </div>
-                    <div class="total-item">
-                        <span class="value">${totalCarbs.toFixed(1)}g</span>
-                        <span class="label">Węglowodany</span>
-                    </div>
-                    <div class="total-item">
-                        <span class="value">${totalFat.toFixed(1)}g</span>
-                        <span class="label">Tłuszcze</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function generateWeeklyPlan() {
-    const startDate = new Date(document.getElementById('startDate').value);
-    const weeklyPlanDiv = document.getElementById('weeklyPlan');
-
-    currentWeeklyPlan = {};
-    let html = '';
-
-    for (let i = 0; i < 7; i++) {
-        const currentDate = new Date(startDate);
-        currentDate.setDate(startDate.getDate() + i);
-
-        const dateStr = currentDate.toLocaleDateString('pl-PL', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-
-        const breakfast = getRandomRecipeByType('Sniadanie');
-        const lunch = getRandomRecipeByType('Obiad');
-        const dinner = getRandomRecipeByType('Kolacja');
-
-        if (!breakfast || !lunch || !dinner) {
-            weeklyPlanDiv.innerHTML = '<p class="loading">Za mało przepisów w bazie! Przetwórz najpierw pliki PDF.</p>';
-            return;
-        }
-
-        currentWeeklyPlan[dateStr] = { breakfast, lunch, dinner };
-
-        const totalCalories = breakfast.calories + lunch.calories + dinner.calories;
-
-        html += `
-            <div class="day-plan">
-                <h3>${dateStr}</h3>
-
-                <div class="meal">
-                    <h4>Śniadanie</h4>
-                    <div class="meal-name">${breakfast.name}</div>
-                    <div class="meal-nutrition">
-                        <span class="nutrition-item">${breakfast.calories} kcal</span>
-                        <span class="nutrition-item">B: ${breakfast.protein}g</span>
-                        <span class="nutrition-item">W: ${breakfast.carbohydrates}g</span>
-                        <span class="nutrition-item">T: ${breakfast.fat}g</span>
-                    </div>
-                </div>
-
-                <div class="meal">
-                    <h4>Obiad</h4>
-                    <div class="meal-name">${lunch.name}</div>
-                    <div class="meal-nutrition">
-                        <span class="nutrition-item">${lunch.calories} kcal</span>
-                        <span class="nutrition-item">B: ${lunch.protein}g</span>
-                        <span class="nutrition-item">W: ${lunch.carbohydrates}g</span>
-                        <span class="nutrition-item">T: ${lunch.fat}g</span>
-                    </div>
-                </div>
-
-                <div class="meal">
-                    <h4>Kolacja</h4>
-                    <div class="meal-name">${dinner.name}</div>
-                    <div class="meal-nutrition">
-                        <span class="nutrition-item">${dinner.calories} kcal</span>
-                        <span class="nutrition-item">B: ${dinner.protein}g</span>
-                        <span class="nutrition-item">W: ${dinner.carbohydrates}g</span>
-                        <span class="nutrition-item">T: ${dinner.fat}g</span>
-                    </div>
-                </div>
-
-                <div style="margin-top: 10px; padding: 12px; background: #1f1f1f; border-radius: 6px; border: 1px solid #333;">
-                    <strong style="color: #ffffff;">Suma dzienna: ${totalCalories} kcal</strong>
-                </div>
-            </div>
-        `;
-    }
-
-    weeklyPlanDiv.innerHTML = html;
-}
-
-function printWeeklyPlan() {
-    const printArea = document.getElementById('printArea');
-    let html = '<div class="print-header"><h1>Tygodniowy Plan Posiłków</h1></div>';
-
-    for (const [date, meals] of Object.entries(currentWeeklyPlan)) {
-        html += `
-            <div class="print-day">
-                <h2>${date}</h2>
-                <div style="margin-left: 20px;">
-                    <h3>Śniadanie</h3>
-                    <p><strong>${meals.breakfast.name}</strong></p>
-                    <p>Składniki: ${meals.breakfast.ingredients.replace(/\n/g, ', ')}</p>
-                    <p>Kalorie: ${meals.breakfast.calories} kcal | Białko: ${meals.breakfast.protein}g | Węgl: ${meals.breakfast.carbohydrates}g | Tłuszcze: ${meals.breakfast.fat}g</p>
-
-                    <h3>Obiad</h3>
-                    <p><strong>${meals.lunch.name}</strong></p>
-                    <p>Składniki: ${meals.lunch.ingredients.replace(/\n/g, ', ')}</p>
-                    <p>Kalorie: ${meals.lunch.calories} kcal | Białko: ${meals.lunch.protein}g | Węgl: ${meals.lunch.carbohydrates}g | Tłuszcze: ${meals.lunch.fat}g</p>
-
-                    <h3>Kolacja</h3>
-                    <p><strong>${meals.dinner.name}</strong></p>
-                    <p>Składniki: ${meals.dinner.ingredients.replace(/\n/g, ', ')}</p>
-                    <p>Kalorie: ${meals.dinner.calories} kcal | Białko: ${meals.dinner.protein}g | Węgl: ${meals.dinner.carbohydrates}g | Tłuszcze: ${meals.dinner.fat}g</p>
-                </div>
-            </div>
-        `;
-    }
-
-    printArea.innerHTML = html;
-    window.print();
-}
-
-// ============== SHOPPING LIST ==============
-
-function generateShoppingList() {
-    const shoppingListDiv = document.getElementById('shoppingList');
-
-    if (Object.keys(currentWeeklyPlan).length === 0) {
-        shoppingListDiv.innerHTML = '<p class="loading">Najpierw wygeneruj tygodniowy plan posiłków!</p>';
-        return;
-    }
-
-    const ingredients = new Map();
-
-    for (const [date, meals] of Object.entries(currentWeeklyPlan)) {
-        for (const meal of Object.values(meals)) {
-            const items = meal.ingredients.split('\n').filter(i => i.trim());
-            items.forEach(item => {
-                if (item.trim()) {
-                    const count = ingredients.get(item) || 0;
-                    ingredients.set(item, count + 1);
-                }
-            });
-        }
-    }
-
-    let html = '<div class="shopping-category"><h3>Lista Zakupów na Tydzień</h3><ul>';
-
-    for (const [ingredient, count] of ingredients.entries()) {
-        html += `<li>${ingredient} ${count > 1 ? `(x${count})` : ''}</li>`;
-    }
-
-    html += '</ul></div>';
-    shoppingListDiv.innerHTML = html;
-}
-
-async function exportToTodoist() {
-    const todoistApiKey = prompt('Wprowadź swój klucz API Todoist:');
-
-    if (!todoistApiKey) {
-        alert('Brak klucza API');
-        return;
-    }
-
-    const shoppingListDiv = document.getElementById('shoppingList');
-    const items = shoppingListDiv.querySelectorAll('li');
-
-    if (items.length === 0) {
-        alert('Najpierw wygeneruj listę zakupów!');
-        return;
-    }
-
-    try {
-        for (const item of items) {
-            const taskContent = item.textContent;
-
-            const response = await fetch(TODOIST_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${todoistApiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    content: taskContent,
-                    project_id: null
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-        }
-
-        alert('Lista zakupów została wyeksportowana do Todoist!');
-    } catch (error) {
-        console.error('Błąd podczas eksportu do Todoist:', error);
-        alert('Błąd podczas eksportu do Todoist. Sprawdź konsolę dla szczegółów.');
-    }
-}
-
-// Close modal when clicking outside
-window.onclick = function(event) {
-    const modal = document.getElementById('editModal');
-    if (event.target == modal) {
-        closeEditModal();
-    }
-}
+    }, 100);
+});
