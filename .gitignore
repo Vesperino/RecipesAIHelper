@@ -14,6 +14,7 @@ obj/
 ## Configuration (contains API keys)
 appsettings.json
 appsettings.*.json
+!appsettings.example.json
 
 ## IDE
 .vs/
