@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using RecipesAIHelper.Services;
 
 namespace RecipesAIHelper.Controllers;

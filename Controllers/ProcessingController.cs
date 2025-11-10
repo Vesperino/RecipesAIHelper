@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using RecipesAIHelper.Data;
 using RecipesAIHelper.Models;
 using RecipesAIHelper.Services;
