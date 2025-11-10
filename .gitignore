@@ -1,0 +1,31 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.log
+
+## Database
+*.db
+*.db-shm
+*.db-wal
+
+## Configuration (contains API keys)
+appsettings.json
+appsettings.*.json
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Logs
+logs/
+*.log

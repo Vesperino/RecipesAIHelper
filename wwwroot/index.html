@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe AI Helper - Meal Planner</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Recipe AI Helper</h1>
+            <p>Plan your meals and generate shopping lists</p>
+        </header>
+
+        <main>
+            <section class="card">
+                <h2>Daily Meal Plan</h2>
+                <button id="generateDailyBtn" class="btn btn-primary">Generate Random Daily Plan</button>
+                <div id="dailyPlan" class="meal-plan"></div>
+            </section>
+
+            <section class="card">
+                <h2>Weekly Meal Plan</h2>
+                <div class="week-selector">
+                    <label for="startDate">Start Date:</label>
+                    <input type="date" id="startDate">
+                    <button id="generateWeeklyBtn" class="btn btn-primary">Generate Weekly Plan</button>
+                    <button id="printWeeklyBtn" class="btn btn-secondary">Print Weekly Plan</button>
+                </div>
+                <div id="weeklyPlan" class="meal-plan"></div>
+            </section>
+
+            <section class="card">
+                <h2>Shopping List</h2>
+                <button id="generateShoppingListBtn" class="btn btn-primary">Generate from Weekly Plan</button>
+                <button id="exportTodoistBtn" class="btn btn-success">Export to Todoist</button>
+                <div id="shoppingList" class="shopping-list"></div>
+            </section>
+
+            <section class="card">
+                <h2>Recipe Database</h2>
+                <button id="loadRecipesBtn" class="btn btn-primary">Load All Recipes</button>
+                <div id="recipesList" class="recipes-list"></div>
+            </section>
+        </main>
+    </div>
+
+    <div id="printArea" class="print-only"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
