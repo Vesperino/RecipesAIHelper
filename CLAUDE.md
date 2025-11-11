@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Repository Structure
+
+**Important**: The Git repository is located in the `RecipesAIHelper` directory:
+- Repository location: `f:\Projekty\Przepisy\RecipesAIHelper\.git`
+- Working directory: `f:\Projekty\Przepisy\RecipesAIHelper`
+- The parent directory `f:\Projekty\Przepisy` is just a container folder
+
+When working with git commands, always ensure you're in the `RecipesAIHelper` directory.
+
 ## Project Overview
 
 RecipesAIHelper is a .NET 9 ASP.NET Core application that extracts recipes from PDF files using AI services (OpenAI GPT and Google Gemini). It manages a recipe database and provides meal planning functionality through a web interface.

@@ -58,7 +58,6 @@ dlldata.c
 
 # Debug images folder (generated during PDF processing)
 zdj/
-RecipesAIHelper/zdj/
 
 # Logs
 *.log
