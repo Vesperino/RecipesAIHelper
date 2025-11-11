@@ -66,21 +66,38 @@ public class TodoistService
                 .OrderBy(g => g.Key)
                 .ToList();
 
-            // Step 3: Add tasks for each item
+            // Step 3: Create sections for each category and add tasks
             int successCount = 0;
             int totalItems = items.Count;
 
             foreach (var categoryGroup in itemsByCategory)
             {
                 var category = categoryGroup.Key;
-                Console.WriteLine($"   📦 Dodawanie kategorii: {category}");
+                Console.WriteLine($"   📦 Tworzenie sekcji: {category}");
 
+                // Create section for this category
+                var section = await CreateSectionAsync(project.Id, GetCategoryDisplayName(category));
+
+                if (section == null)
+                {
+                    Console.WriteLine($"   ⚠️ Nie udało się utworzyć sekcji dla {category}, dodaję zadania bez sekcji");
+                }
+
+                // Add tasks to this section
                 foreach (var item in categoryGroup)
                 {
                     var taskContent = $"{item.Name} - {item.Quantity}";
-                    var taskDescription = $"Kategoria: {category}";
 
-                    var success = await CreateTaskAsync(project.Id, taskContent, taskDescription);
+                    bool success;
+                    if (section != null)
+                    {
+                        success = await CreateTaskInSectionAsync(section.Id, taskContent);
+                    }
+                    else
+                    {
+                        success = await CreateTaskAsync(project.Id, taskContent, $"Kategoria: {category}");
+                    }
+
                     if (success)
                     {
                         successCount++;
@@ -142,6 +159,68 @@ public class TodoistService
     }
 
     /// <summary>
+    /// Create a new section in a project
+    /// </summary>
+    private async Task<TodoistSection?> CreateSectionAsync(string projectId, string name)
+    {
+        try
+        {
+            var request = new
+            {
+                project_id = projectId,
+                name = name
+            };
+
+            var json = JsonSerializer.Serialize(request);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync($"{BaseUrl}/sections", content);
+            response.EnsureSuccessStatusCode();
+
+            var responseJson = await response.Content.ReadAsStringAsync();
+            var section = JsonSerializer.Deserialize<TodoistSection>(responseJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return section;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd tworzenia sekcji '{name}': {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Create a new task in a section
+    /// </summary>
+    private async Task<bool> CreateTaskInSectionAsync(string sectionId, string content)
+    {
+        try
+        {
+            var request = new
+            {
+                content = content,
+                section_id = sectionId
+            };
+
+            var json = JsonSerializer.Serialize(request);
+            var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync($"{BaseUrl}/tasks", httpContent);
+            response.EnsureSuccessStatusCode();
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd tworzenia zadania w sekcji '{content}': {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Create a new task in a project
     /// </summary>
     private async Task<bool> CreateTaskAsync(string projectId, string content, string? description = null)
@@ -169,6 +248,26 @@ public class TodoistService
             return false;
         }
     }
+
+    /// <summary>
+    /// Get display name for category with emoji
+    /// </summary>
+    private string GetCategoryDisplayName(string category)
+    {
+        return category.ToLowerInvariant() switch
+        {
+            "warzywa" => "🥬 Warzywa",
+            "owoce" => "🍎 Owoce",
+            "mięso" => "🍖 Mięso",
+            "nabiał" => "🥛 Nabiał",
+            "pieczywo" => "🍞 Pieczywo",
+            "przyprawy" => "🧂 Przyprawy",
+            "słodycze" => "🍫 Słodycze",
+            "napoje" => "🥤 Napoje",
+            "inne" => "📦 Inne",
+            _ => $"📦 {category}"
+        };
+    }
 }
 
 // Response models
@@ -185,6 +284,18 @@ public class TodoistProject
 
     [JsonPropertyName("color")]
     public string Color { get; set; } = string.Empty;
+}
+
+public class TodoistSection
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("project_id")]
+    public string ProjectId { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
 }
 
 public class TodoistExportResult

@@ -303,19 +303,33 @@ Aplikacja umożliwia automatyczny eksport list zakupowych do Todoist, gdzie każ
 ### Struktura exportu
 
 - **Nazwa projektu**: `🛒 [Nazwa planu] (DD.MM - DD.MM)`
-- **Zadania**: Każdy składnik to osobne zadanie w formacie: `[Nazwa] - [Ilość]`
-- **Opisy zadań**: Zawierają kategorię składnika (warzywa, mięso, nabiał, etc.)
-- **Grupowanie**: Zadania automatycznie grupowane według kategorii
+- **Sekcje**: Automatyczne tworzenie sekcji dla każdej kategorii z emoji:
+  - 🥬 Warzywa
+  - 🍎 Owoce
+  - 🍖 Mięso
+  - 🥛 Nabiał
+  - 🍞 Pieczywo
+  - 🧂 Przyprawy
+  - 🍫 Słodycze
+  - 🥤 Napoje
+  - 📦 Inne
+- **Zadania**: Każdy składnik jako osobne zadanie w formacie: `[Nazwa] - [Ilość]`
+- **Organizacja**: Zadania automatycznie przypisane do odpowiednich sekcji
 
 ### Przykład
 
 Dla planu "Plan na styczeń" obejmującego 01.01 - 07.01:
 - **Projekt Todoist**: `🛒 Plan na styczeń (01.01 - 07.01)`
-- **Zadania**:
-  - Pomidor - 500g (kategoria: warzywa)
-  - Pierś z kurczaka - 1kg (kategoria: mięso)
-  - Mleko - 1l (kategoria: nabiał)
-  - ... i więcej
+  - **Sekcja 🥬 Warzywa**:
+    - ☐ Pomidor - 500g
+    - ☐ Cebula - 3 szt
+  - **Sekcja 🍖 Mięso**:
+    - ☐ Pierś z kurczaka - 1kg
+    - ☐ Wołowina - 500g
+  - **Sekcja 🥛 Nabiał**:
+    - ☐ Mleko - 1l
+    - ☐ Ser żółty - 200g
+  - ... i więcej sekcji
 
 ## Licencja
 
