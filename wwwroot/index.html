@@ -935,6 +935,27 @@
 
                     <!-- Right: Weekly Plan -->
                     <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                        <!-- Person selector (only when plan has persons) -->
+                        <template x-if="selectedPlan?.persons && selectedPlan.persons.length > 0">
+                            <div class="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+                                <p class="text-xs text-gray-400 mb-2">Pokaż plan dla:</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <button @click="selectedPersonId = null"
+                                            :class="selectedPersonId === null ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-500' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'"
+                                            class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200">
+                                        👥 Wszystkie (<span x-text="selectedPlan.persons.length"></span>)
+                                    </button>
+                                    <template x-for="person in selectedPlan.persons" :key="person.id">
+                                        <button @click="selectedPersonId = person.id"
+                                                :class="selectedPersonId === person.id ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white border-purple-500' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'"
+                                                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200">
+                                            <span x-text="person.name"></span> (<span x-text="person.targetCalories"></span> kcal)
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
                         <h3 class="text-lg font-bold text-white mb-4">Plan Tygodnia</h3>
 
                         <!-- Days -->
@@ -1011,7 +1032,7 @@
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                                                     </svg>
                                                                 </button>
-                                                                <button @click="viewRecipeDetails(entry.recipe)"
+                                                                <button @click="viewRecipeDetailsWithScaling(entry)"
                                                                         class="text-blue-400 hover:text-blue-300 flex-shrink-0"
                                                                         title="Zobacz szczegóły">
                                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1049,19 +1070,23 @@
                                                             </div>
                                                         </div>
 
-                                                        <!-- Nutrition info -->
+                                                        <!-- Nutrition info (shows scaled values when person selected) -->
                                                         <div class="flex flex-wrap gap-2 text-xs">
-                                                            <span class="bg-gray-700 px-2 py-1 rounded text-gray-300">
-                                                                <span class="font-semibold text-white" x-text="entry.recipe?.calories"></span> kcal
+                                                            <span class="bg-gray-700 px-2 py-1 rounded text-gray-300"
+                                                                  :class="selectedPersonId && entry.scaledRecipes ? 'ring-1 ring-purple-500' : ''">
+                                                                <span class="font-semibold text-white" x-text="getDisplayCalories(entry)"></span> kcal
                                                             </span>
-                                                            <span class="bg-blue-900/30 px-2 py-1 rounded text-blue-300">
-                                                                P: <span class="font-semibold" x-text="entry.recipe?.protein"></span>g
+                                                            <span class="bg-blue-900/30 px-2 py-1 rounded text-blue-300"
+                                                                  :class="selectedPersonId && entry.scaledRecipes ? 'ring-1 ring-purple-500' : ''">
+                                                                P: <span class="font-semibold" x-text="getDisplayProtein(entry)"></span>g
                                                             </span>
-                                                            <span class="bg-yellow-900/30 px-2 py-1 rounded text-yellow-300">
-                                                                C: <span class="font-semibold" x-text="entry.recipe?.carbohydrates"></span>g
+                                                            <span class="bg-yellow-900/30 px-2 py-1 rounded text-yellow-300"
+                                                                  :class="selectedPersonId && entry.scaledRecipes ? 'ring-1 ring-purple-500' : ''">
+                                                                C: <span class="font-semibold" x-text="getDisplayCarbs(entry)"></span>g
                                                             </span>
-                                                            <span class="bg-red-900/30 px-2 py-1 rounded text-red-300">
-                                                                F: <span class="font-semibold" x-text="entry.recipe?.fat"></span>g
+                                                            <span class="bg-red-900/30 px-2 py-1 rounded text-red-300"
+                                                                  :class="selectedPersonId && entry.scaledRecipes ? 'ring-1 ring-purple-500' : ''">
+                                                                F: <span class="font-semibold" x-text="getDisplayFat(entry)"></span>g
                                                             </span>
                                                         </div>
 
@@ -1762,8 +1787,8 @@
                         <p class="text-xs text-gray-400 mt-1">Ile przepisów z każdej kategorii na każdy dzień (1-5)</p>
                     </div>
 
-                    <!-- Calorie Target Option -->
-                    <div class="pt-4 border-t border-gray-700">
+                    <!-- Calorie Target Option (hidden when plan has persons) -->
+                    <div class="pt-4 border-t border-gray-700" x-show="!selectedPlan?.persons || selectedPlan.persons.length === 0">
                         <label class="flex items-center gap-2 cursor-pointer mb-3">
                             <input type="checkbox" x-model="autoGenerateForm.useCalorieTarget"
                                    class="w-4 h-4 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-2 focus:ring-blue-500">
@@ -2172,6 +2197,125 @@
                     <div>
                         <h4 class="text-lg font-bold text-white mb-2">Sposób przygotowania</h4>
                         <p class="text-gray-300 whitespace-pre-wrap" x-text="selectedRecipe?.instructions"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scaled Recipe Comparison Modal (Multi-person) -->
+    <div x-show="showScaledRecipeModal" x-cloak
+         class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+         @click.self="showScaledRecipeModal = false">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6" x-show="selectedMealPlanEntry">
+                <div class="flex items-start justify-between mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-white" x-text="selectedMealPlanEntry?.recipe?.name"></h3>
+                        <p class="text-sm text-gray-400 mt-1">Porównanie bazowego przepisu z przeskalowanymi wersjami</p>
+                    </div>
+                    <button @click="showScaledRecipeModal = false"
+                            class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Base Recipe Section -->
+                    <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                        <h4 class="text-lg font-bold text-white mb-3">📋 Bazowy przepis</h4>
+                        <div class="grid grid-cols-4 gap-4 mb-4">
+                            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                <div class="text-gray-400 text-xs mb-1">Kalorie</div>
+                                <div class="text-xl font-bold text-white" x-text="selectedMealPlanEntry?.recipe?.calories"></div>
+                            </div>
+                            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                <div class="text-gray-400 text-xs mb-1">Białko</div>
+                                <div class="text-xl font-bold text-white" x-text="selectedMealPlanEntry?.recipe?.protein + 'g'"></div>
+                            </div>
+                            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                <div class="text-gray-400 text-xs mb-1">Węglowodany</div>
+                                <div class="text-xl font-bold text-white" x-text="selectedMealPlanEntry?.recipe?.carbohydrates + 'g'"></div>
+                            </div>
+                            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                <div class="text-gray-400 text-xs mb-1">Tłuszcze</div>
+                                <div class="text-xl font-bold text-white" x-text="selectedMealPlanEntry?.recipe?.fat + 'g'"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-300 mb-2">Składniki:</p>
+                            <ul class="list-disc list-inside text-sm text-gray-400 space-y-1">
+                                <template x-for="ingredient in selectedMealPlanEntry?.recipe?.ingredients.split('\n')" :key="ingredient">
+                                    <li x-text="ingredient"></li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Scaled Recipes for each person -->
+                    <div x-show="selectedMealPlanEntry?.scaledRecipes && selectedMealPlanEntry.scaledRecipes.length > 0">
+                        <h4 class="text-lg font-bold text-white mb-3">👥 Przeskalowane wersje dla osób</h4>
+                        <div class="space-y-4">
+                            <template x-for="scaledRecipe in selectedMealPlanEntry?.scaledRecipes" :key="scaledRecipe.id">
+                                <div class="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg p-4 border border-purple-700/30">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <div>
+                                            <h5 class="text-white font-bold" x-text="scaledRecipe.person?.name"></h5>
+                                            <p class="text-xs text-gray-400">Cel: <span x-text="scaledRecipe.person?.targetCalories"></span> kcal/dzień</p>
+                                        </div>
+                                        <div class="bg-purple-900/50 text-purple-300 px-3 py-1 rounded-lg text-sm">
+                                            Współczynnik: <span class="font-bold" x-text="(scaledRecipe.scalingFactor || 1).toFixed(2)"></span>x
+                                        </div>
+                                    </div>
+
+                                    <!-- Scaled nutrition -->
+                                    <div class="grid grid-cols-4 gap-3 mb-4">
+                                        <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                            <div class="text-gray-400 text-xs mb-1">Kalorie</div>
+                                            <div class="text-lg font-bold text-white" x-text="scaledRecipe.scaledCalories"></div>
+                                        </div>
+                                        <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                            <div class="text-gray-400 text-xs mb-1">Białko</div>
+                                            <div class="text-lg font-bold text-white" x-text="Math.round(scaledRecipe.scaledProtein) + 'g'"></div>
+                                        </div>
+                                        <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                            <div class="text-gray-400 text-xs mb-1">Węglowodany</div>
+                                            <div class="text-lg font-bold text-white" x-text="Math.round(scaledRecipe.scaledCarbs) + 'g'"></div>
+                                        </div>
+                                        <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                            <div class="text-gray-400 text-xs mb-1">Tłuszcze</div>
+                                            <div class="text-lg font-bold text-white" x-text="Math.round(scaledRecipe.scaledFat) + 'g'"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Scaled ingredients -->
+                                    <div x-show="scaledRecipe.scaledIngredients && scaledRecipe.scaledIngredients.length > 0">
+                                        <p class="text-sm font-medium text-gray-300 mb-2">Przeskalowane składniki:</p>
+                                        <ul class="list-disc list-inside text-sm text-gray-400 space-y-1">
+                                            <template x-for="ingredient in scaledRecipe.scaledIngredients" :key="ingredient">
+                                                <li x-text="ingredient"></li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- No scaled recipes warning -->
+                    <div x-show="!selectedMealPlanEntry?.scaledRecipes || selectedMealPlanEntry.scaledRecipes.length === 0"
+                         class="bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-4">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <div>
+                                <p class="text-yellow-400 font-medium">Brak przeskalowanych wersji</p>
+                                <p class="text-sm text-gray-400 mt-1">Użyj przycisku "Skaluj dla osób" aby wygenerować przeskalowane składniki</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

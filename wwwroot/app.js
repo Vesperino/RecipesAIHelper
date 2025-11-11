@@ -138,6 +138,9 @@ function appData() {
 
         // Multi-person
         showPersonsModal: false,
+        selectedPersonId: null, // null = show all persons, or specific personId to show scaled recipes
+        selectedMealPlanEntry: null, // For scaled recipe comparison modal
+        showScaledRecipeModal: false,
         newPerson: {
             name: '',
             targetCalories: 2000
@@ -806,9 +809,71 @@ function appData() {
             return MEAL_TYPE_NAMES[mealType] || mealType;
         },
 
+        // === Multi-person helper functions ===
+
+        getScaledRecipeForPerson(entry, personId) {
+            if (!entry?.scaledRecipes || entry.scaledRecipes.length === 0) {
+                return null;
+            }
+            return entry.scaledRecipes.find(sr => sr.personId === personId);
+        },
+
+        getDisplayCalories(entry) {
+            // If specific person is selected and entry has scaled recipes, show scaled value
+            if (this.selectedPersonId && entry?.scaledRecipes) {
+                const scaledRecipe = this.getScaledRecipeForPerson(entry, this.selectedPersonId);
+                if (scaledRecipe) {
+                    return scaledRecipe.scaledCalories;
+                }
+            }
+            // Otherwise show base recipe calories
+            return entry.recipe?.calories || 0;
+        },
+
+        getDisplayProtein(entry) {
+            if (this.selectedPersonId && entry?.scaledRecipes) {
+                const scaledRecipe = this.getScaledRecipeForPerson(entry, this.selectedPersonId);
+                if (scaledRecipe) {
+                    return Math.round(scaledRecipe.scaledProtein);
+                }
+            }
+            return entry.recipe?.protein || 0;
+        },
+
+        getDisplayCarbs(entry) {
+            if (this.selectedPersonId && entry?.scaledRecipes) {
+                const scaledRecipe = this.getScaledRecipeForPerson(entry, this.selectedPersonId);
+                if (scaledRecipe) {
+                    return Math.round(scaledRecipe.scaledCarbs);
+                }
+            }
+            return entry.recipe?.carbohydrates || 0;
+        },
+
+        getDisplayFat(entry) {
+            if (this.selectedPersonId && entry?.scaledRecipes) {
+                const scaledRecipe = this.getScaledRecipeForPerson(entry, this.selectedPersonId);
+                if (scaledRecipe) {
+                    return Math.round(scaledRecipe.scaledFat);
+                }
+            }
+            return entry.recipe?.fat || 0;
+        },
+
         viewRecipeDetails(recipe) {
             this.selectedRecipe = recipe;
             this.showRecipeModal = true;
+        },
+
+        viewRecipeDetailsWithScaling(entry) {
+            // Open scaled recipe comparison modal if plan has persons
+            if (this.selectedPlan?.persons && this.selectedPlan.persons.length > 0) {
+                this.selectedMealPlanEntry = entry;
+                this.showScaledRecipeModal = true;
+            } else {
+                // No persons - show regular recipe modal
+                this.viewRecipeDetails(entry.recipe);
+            }
         },
 
         editRecipe(recipe) {
@@ -1983,7 +2048,7 @@ function appData() {
         getDayTotalCalories(day) {
             if (!day || !day.entries || day.entries.length === 0) return 0;
             return day.entries.reduce((total, entry) => {
-                return total + (entry.recipe?.calories || 0);
+                return total + this.getDisplayCalories(entry);
             }, 0);
         },
 
@@ -1993,9 +2058,9 @@ function appData() {
             }
             return day.entries.reduce((totals, entry) => {
                 return {
-                    protein: totals.protein + (entry.recipe?.protein || 0),
-                    carbohydrates: totals.carbohydrates + (entry.recipe?.carbohydrates || 0),
-                    fat: totals.fat + (entry.recipe?.fat || 0)
+                    protein: totals.protein + this.getDisplayProtein(entry),
+                    carbohydrates: totals.carbohydrates + this.getDisplayCarbs(entry),
+                    fat: totals.fat + this.getDisplayFat(entry)
                 };
             }, { protein: 0, carbohydrates: 0, fat: 0 });
         },
