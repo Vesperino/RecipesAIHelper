@@ -461,7 +461,8 @@ public class MealPlansController : ControllerBase
                                             if (isDessert)
                                             {
                                                 // Desserts use DessertPlanningService (same portion for everyone)
-                                                var dessertService = new DessertPlanningService(apiKey, activeProvider.Model);
+                                                var dessertModel = _db.GetSetting("DessertPlanning_Model") ?? activeProvider.Model;
+                                                var dessertService = new DessertPlanningService(apiKey, dessertModel);
                                                 var dessertPlan = await dessertService.PlanDessertAsync(entry.Recipe, persons);
 
                                                 var scaledRecipe = new MealPlanRecipe
@@ -483,7 +484,8 @@ public class MealPlansController : ControllerBase
                                             else
                                             {
                                                 // Regular recipe - scale with day factor
-                                                var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
+                                                var scalingModel = _db.GetSetting("RecipeScaling_Model") ?? activeProvider.Model;
+                                                var scalingService = new RecipeScalingService(apiKey, scalingModel);
 
                                                 var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
                                                     entry.Recipe,

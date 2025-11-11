@@ -93,6 +93,12 @@ function appData() {
         },
         todoistSettingsSaving: false,
         todoistTestRunning: false,
+
+        // AI Model Settings for Meal Planning
+        aiModelSettings: {
+            recipeScaling: { model: 'gemini-2.5-flash' },
+            dessertPlanning: { model: 'gemini-2.5-flash' }
+        },
         isExportingToTodoist: false,
 
         // Meal Planner
@@ -148,6 +154,7 @@ function appData() {
             await this.loadCurrentDirectory();
             await this.loadImageSettings();
             await this.loadTodoistSettings();
+            await this.loadAIModelSettings();
             await this.loadMealPlans();
 
             // Restore last tab from localStorage
@@ -1267,6 +1274,58 @@ function appData() {
                 this.showNotification('❌ Błąd exportu: ' + error.message, 'error');
             } finally {
                 this.isExportingToTodoist = false;
+            }
+        },
+
+        // ============== AI MODEL SETTINGS ==============
+
+        async loadAIModelSettings() {
+            try {
+                const response = await fetch('/api/aimodelsettings');
+                if (!response.ok) throw new Error('Failed to load AI model settings');
+                this.aiModelSettings = await response.json();
+            } catch (error) {
+                console.error('Error loading AI model settings:', error);
+                // Use defaults if loading fails
+            }
+        },
+
+        async saveAIModelSettings(settingType) {
+            try {
+                const payload = {};
+
+                if (settingType === 'recipeScaling') {
+                    payload.recipeScaling = {
+                        model: this.aiModelSettings.recipeScaling.model
+                    };
+                } else if (settingType === 'dessertPlanning') {
+                    payload.dessertPlanning = {
+                        model: this.aiModelSettings.dessertPlanning.model
+                    };
+                }
+
+                const response = await fetch('/api/aimodelsettings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to save AI model settings');
+                }
+
+                // Show brief success indicator
+                const refName = settingType + 'ModelSaved';
+                if (this.$refs[refName]) {
+                    this.$refs[refName].style.display = 'block';
+                    setTimeout(() => {
+                        this.$refs[refName].style.display = 'none';
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Error saving AI model settings:', error);
+                this.showNotification('❌ Błąd zapisu: ' + error.message, 'error');
             }
         },
 

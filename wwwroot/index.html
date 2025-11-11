@@ -1361,6 +1361,56 @@
                     </ul>
                 </div>
             </div>
+
+            <!-- AI Models for Meal Planning -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">🤖 Modele AI do Planowania Posiłków</h2>
+                        <p class="text-gray-400 text-sm mt-1">Konfiguracja modeli AI używanych do skalowania przepisów i planowania deserów</p>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-white mb-3">⚙️ Wybór Modeli</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Recipe Scaling Model -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Model Skalowania Przepisów</label>
+                            <input type="text" x-model="aiModelSettings.recipeScaling.model"
+                                   @change="saveAIModelSettings('recipeScaling')"
+                                   placeholder="gemini-2.5-flash"
+                                   class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                            <p class="text-xs text-gray-400 mt-1">Model używany do inteligentnego skalowania składników przepisów</p>
+                            <p class="text-xs text-green-400 mt-1" x-show="false" x-ref="recipeScalingModelSaved">✓ Zapisano automatycznie</p>
+                        </div>
+
+                        <!-- Dessert Planning Model -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Model Planowania Deserów</label>
+                            <input type="text" x-model="aiModelSettings.dessertPlanning.model"
+                                   @change="saveAIModelSettings('dessertPlanning')"
+                                   placeholder="gemini-2.5-flash"
+                                   class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                            <p class="text-xs text-gray-400 mt-1">Model używany do planowania porcji deserów dla wielu osób</p>
+                            <p class="text-xs text-green-400 mt-1" x-show="false" x-ref="dessertPlanningModelSaved">✓ Zapisano automatycznie</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-4">💡 Klucze API są pobierane z aktywnego providera w sekcji "🤖 Providery AI do Ekstrakcji Przepisów"</p>
+                </div>
+
+                <!-- Help Section -->
+                <div class="mt-6 bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+                    <h4 class="text-white font-medium mb-2">📚 Wskazówki:</h4>
+                    <ul class="text-sm text-gray-300 space-y-1 list-disc list-inside">
+                        <li><strong>Modele zapisują się automatycznie</strong> - wystarczy wpisać nazwę i opuścić pole</li>
+                        <li>Możesz używać różnych modeli dla skalowania i deserów (np. szybszy model dla skalowania)</li>
+                        <li>Domyślnie: gemini-2.5-flash (szybki i tani model Google)</li>
+                        <li>Alternatywy: gemini-2.0-flash-exp, gemini-1.5-pro, gpt-4o (wymaga konfiguracji providera OpenAI)</li>
+                        <li>System używa klucza API z aktywnego providera skonfigurowanego powyżej</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </main>
 
