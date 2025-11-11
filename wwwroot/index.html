@@ -553,12 +553,12 @@
                         <div class="p-4">
                             <div class="flex items-start justify-between mb-2">
                                 <h3 class="text-lg font-bold text-white" x-text="recipe.name"></h3>
-                                <div class="flex flex-col gap-1">
+                                <div class="flex flex-wrap gap-1">
                                     <span class="bg-blue-900/50 text-blue-400 text-xs px-2 py-1 rounded"
                                           x-text="getMealTypeName(recipe.mealType)"></span>
                                     <span x-show="recipe.alternateMealType !== null && recipe.alternateMealType !== undefined"
                                           class="bg-green-900/50 text-green-400 text-xs px-2 py-1 rounded"
-                                          x-text="recipe.alternateMealType !== null ? '/' + getMealTypeName(recipe.alternateMealType) : ''"></span>
+                                          x-text="getMealTypeName(recipe.alternateMealType)"></span>
                                 </div>
                             </div>
                             <p class="text-gray-400 text-sm mb-4 line-clamp-2" x-text="recipe.description"></p>
@@ -890,7 +890,9 @@
                                             <div class="flex items-start justify-between gap-2">
                                                 <div class="flex-1 min-w-0">
                                                     <h4 class="font-medium text-white text-sm truncate" x-text="recipe.name"></h4>
-                                                    <p class="text-xs text-gray-400 mb-1" x-text="getMealTypeName(recipe.mealType)"></p>
+                                                    <p class="text-xs text-gray-400 mb-1">
+                                                        <span x-text="getMealTypeName(recipe.mealType)"></span><span x-show="recipe.alternateMealType !== null && recipe.alternateMealType !== undefined" x-text="' / ' + getMealTypeName(recipe.alternateMealType)"></span>
+                                                    </p>
                                                 </div>
                                                 <!-- Info icon button -->
                                                 <button @click.stop="viewRecipeDetails(recipe)"
@@ -1026,7 +1028,9 @@
                                                                         class="text-left w-full group-hover:text-blue-400 transition-colors">
                                                                     <p class="text-sm font-medium text-white truncate mb-1 group-hover:text-blue-400" x-text="entry.recipe?.name"></p>
                                                                 </button>
-                                                                <p class="text-xs text-gray-400 mb-2" x-text="getMealTypeName(entry.mealType)"></p>
+                                                                <p class="text-xs text-gray-400 mb-2">
+                                                                    <span x-text="getMealTypeName(entry.mealType)"></span><span x-show="entry.recipe?.alternateMealType !== null && entry.recipe?.alternateMealType !== undefined" x-text="' / ' + getMealTypeName(entry.recipe?.alternateMealType)"></span>
+                                                                </p>
                                                             </div>
                                                             <div class="flex gap-2">
                                                                 <!-- Move up button -->
@@ -2253,12 +2257,12 @@
                     <!-- Meal Type -->
                     <div>
                         <h4 class="text-lg font-bold text-white mb-2">Typ posiłku</h4>
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap gap-2">
                             <span class="bg-blue-900/50 text-blue-400 px-3 py-1 rounded text-sm"
                                   x-text="getMealTypeName(selectedRecipe?.mealType)"></span>
                             <span x-show="selectedRecipe?.alternateMealType !== null && selectedRecipe?.alternateMealType !== undefined"
                                   class="bg-green-900/50 text-green-400 px-3 py-1 rounded text-sm"
-                                  x-text="selectedRecipe?.alternateMealType !== null ? '/' + getMealTypeName(selectedRecipe?.alternateMealType) : ''"></span>
+                                  x-text="getMealTypeName(selectedRecipe?.alternateMealType)"></span>
                         </div>
                     </div>
 

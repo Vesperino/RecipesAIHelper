@@ -625,7 +625,7 @@ public class RecipeDbContext : IDisposable
         var command = connection.CreateCommand();
         command.CommandText = @"
             SELECT * FROM Recipes
-            WHERE MealType = @mealType
+            WHERE MealType = @mealType OR AlternateMealType = @mealType
             ORDER BY RANDOM()
             LIMIT @count
         ";
@@ -672,7 +672,7 @@ public class RecipeDbContext : IDisposable
         var command = connection.CreateCommand();
         command.CommandText = @"
             SELECT * FROM Recipes
-            WHERE MealType = @mealType
+            WHERE (MealType = @mealType OR AlternateMealType = @mealType)
             AND Calories >= @minCalories
             AND Calories <= @maxCalories
             ORDER BY RANDOM()
