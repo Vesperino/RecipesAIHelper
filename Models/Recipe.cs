@@ -64,10 +64,19 @@ public class Recipe
 public class NutritionVariant
 {
     public string Label { get; set; } = string.Empty;  // np. "całość", "na porcję", "z dodatkami"
+
+    [JsonConverter(typeof(FlexibleIntConverter))]
     public int Calories { get; set; }
+
+    [JsonConverter(typeof(FlexibleDoubleConverter))]
     public double Protein { get; set; }
+
+    [JsonConverter(typeof(FlexibleDoubleConverter))]
     public double Carbohydrates { get; set; }
+
+    [JsonConverter(typeof(FlexibleDoubleConverter))]
     public double Fat { get; set; }
+
     public string? Notes { get; set; }  // opcjonalne uwagi jak "* Same chlebki"
 }
 
