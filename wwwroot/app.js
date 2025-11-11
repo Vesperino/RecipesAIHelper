@@ -1,11 +1,12 @@
 // Recipe AI Helper - Modern Alpine.js Version
 
-// Meal type mapping (matching C# MealType enum)
+// Meal type mapping (matching C# MealType enum after migration)
+// C# enum: Sniadanie=0, Deser=1, Obiad=2, Kolacja=3, Napoj=4
 const MEAL_TYPE_NAMES = {
     0: 'Śniadanie',
-    1: 'Obiad',
-    2: 'Kolacja',
-    3: 'Deser',
+    1: 'Deser',
+    2: 'Obiad',
+    3: 'Kolacja',
     4: 'Napój',
     'Sniadanie': 'Śniadanie',
     'Obiad': 'Obiad',

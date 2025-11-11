@@ -291,6 +291,7 @@
                     <div class="mb-4">
                         <label class="block text-sm font-medium text-gray-300 mb-2">Typ posiłku</label>
                         <div class="flex flex-wrap gap-2">
+                            <!-- Updated to match C# MealType enum: Sniadanie=0, Deser=1, Obiad=2, Kolacja=3, Napoj=4 -->
                             <button @click="toggleMealTypeFilter(0)"
                                     :class="recipeFilters.mealTypes.includes(0) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
                                     class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
@@ -299,17 +300,17 @@
                             <button @click="toggleMealTypeFilter(1)"
                                     :class="recipeFilters.mealTypes.includes(1) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
                                     class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
-                                Obiad
+                                Deser
                             </button>
                             <button @click="toggleMealTypeFilter(2)"
                                     :class="recipeFilters.mealTypes.includes(2) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
                                     class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
-                                Kolacja
+                                Obiad
                             </button>
                             <button @click="toggleMealTypeFilter(3)"
                                     :class="recipeFilters.mealTypes.includes(3) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
                                     class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
-                                Deser
+                                Kolacja
                             </button>
                             <button @click="toggleMealTypeFilter(4)"
                                     :class="recipeFilters.mealTypes.includes(4) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
@@ -2039,12 +2040,13 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-300 mb-2">Typ posiłku</label>
+                            <!-- Updated to match C# MealType enum: Sniadanie=0, Deser=1, Obiad=2, Kolacja=3, Napoj=4 -->
                             <select x-model.number="editingRecipe.mealType" required
                                     class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
                                 <option value="0">Śniadanie</option>
-                                <option value="1">Obiad</option>
-                                <option value="2">Kolacja</option>
-                                <option value="3">Deser</option>
+                                <option value="1">Deser</option>
+                                <option value="2">Obiad</option>
+                                <option value="3">Kolacja</option>
                                 <option value="4">Napój</option>
                             </select>
                         </div>
@@ -2138,12 +2140,13 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-300 mb-2">Typ posiłku *</label>
+                            <!-- Updated to match C# MealType enum: Sniadanie=0, Deser=1, Obiad=2, Kolacja=3, Napoj=4 -->
                             <select x-model.number="newRecipe.mealType" required
                                     class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
                                 <option value="0">Śniadanie</option>
-                                <option value="1">Obiad</option>
-                                <option value="2">Kolacja</option>
-                                <option value="3">Deser</option>
+                                <option value="1">Deser</option>
+                                <option value="2">Obiad</option>
+                                <option value="3">Kolacja</option>
                                 <option value="4">Napój</option>
                             </select>
                         </div>
