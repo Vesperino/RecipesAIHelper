@@ -548,8 +548,13 @@
                         <div class="p-4">
                             <div class="flex items-start justify-between mb-2">
                                 <h3 class="text-lg font-bold text-white" x-text="recipe.name"></h3>
-                                <span class="bg-blue-900/50 text-blue-400 text-xs px-2 py-1 rounded"
-                                      x-text="getMealTypeName(recipe.mealType)"></span>
+                                <div class="flex flex-col gap-1">
+                                    <span class="bg-blue-900/50 text-blue-400 text-xs px-2 py-1 rounded"
+                                          x-text="getMealTypeName(recipe.mealType)"></span>
+                                    <span x-show="recipe.alternateMealType !== null && recipe.alternateMealType !== undefined"
+                                          class="bg-green-900/50 text-green-400 text-xs px-2 py-1 rounded"
+                                          x-text="recipe.alternateMealType !== null ? '/' + getMealTypeName(recipe.alternateMealType) : ''"></span>
+                                </div>
                             </div>
                             <p class="text-gray-400 text-sm mb-4 line-clamp-2" x-text="recipe.description"></p>
 
@@ -691,6 +696,16 @@
                             </p>
                         </div>
                         <div class="flex flex-wrap gap-3">
+                            <button @click="showPersonsModal = true"
+                                    class="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                                <span>Osoby</span>
+                                <span x-show="selectedPlan?.persons && selectedPlan.persons.length > 0"
+                                      class="bg-yellow-900/50 text-yellow-200 text-xs px-2 py-0.5 rounded-full"
+                                      x-text="selectedPlan.persons.length"></span>
+                            </button>
                             <button @click="autoGenerateMealPlan()"
                                     :disabled="isGeneratingPlan"
                                     class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
@@ -988,6 +1003,20 @@
                                                                         title="Edytuj przepis">
                                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                                                    </svg>
+                                                                </button>
+                                                                <button x-show="selectedPlan?.persons && selectedPlan.persons.length > 0"
+                                                                        @click="scaleRecipeForPlan(entry.id)"
+                                                                        :disabled="entry.scaling"
+                                                                        :class="entry.scaled ? 'text-purple-400 hover:text-purple-300' : 'text-yellow-400 hover:text-yellow-300'"
+                                                                        class="flex-shrink-0"
+                                                                        :title="entry.scaled ? 'Przeskalowano dla ' + selectedPlan.persons.length + ' osób' : 'Skaluj dla osób'">
+                                                                    <svg x-show="!entry.scaling" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path>
+                                                                    </svg>
+                                                                    <svg x-show="entry.scaling" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                                                     </svg>
                                                                 </button>
                                                                 <button @click="removeRecipeFromDay(day.id, entry.id)"
@@ -1925,6 +1954,18 @@
                         <p class="text-gray-300" x-text="selectedRecipe?.description"></p>
                     </div>
 
+                    <!-- Meal Type -->
+                    <div>
+                        <h4 class="text-lg font-bold text-white mb-2">Typ posiłku</h4>
+                        <div class="flex gap-2">
+                            <span class="bg-blue-900/50 text-blue-400 px-3 py-1 rounded text-sm"
+                                  x-text="getMealTypeName(selectedRecipe?.mealType)"></span>
+                            <span x-show="selectedRecipe?.alternateMealType !== null && selectedRecipe?.alternateMealType !== undefined"
+                                  class="bg-green-900/50 text-green-400 px-3 py-1 rounded text-sm"
+                                  x-text="selectedRecipe?.alternateMealType !== null ? '/' + getMealTypeName(selectedRecipe?.alternateMealType) : ''"></span>
+                        </div>
+                    </div>
+
                     <!-- Nutrition -->
                     <div>
                         <h4 class="text-lg font-bold text-white mb-3">Wartości odżywcze (porcja)</h4>
@@ -2072,6 +2113,154 @@
 
             <!-- Message -->
             <div class="text-xs text-gray-400 truncate" x-text="processingStatus.message"></div>
+        </div>
+    </div>
+
+    <!-- Modal: Manage Persons -->
+    <div x-show="showPersonsModal" x-cloak
+         class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+         @click.self="showPersonsModal = false">
+        <div class="bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
+             @click.stop>
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-yellow-600 to-yellow-700 px-6 py-4 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    Zarządzaj Osobami
+                </h3>
+                <button @click="showPersonsModal = false"
+                        class="text-white hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Content -->
+            <div class="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <!-- Info -->
+                <div class="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
+                    <p class="text-blue-300 text-sm">
+                        Dodaj osoby do planu i ustaw ich cele kaloryczne. System automatycznie przeskaluje przepisy dla każdej osoby według jej zapotrzebowania.
+                    </p>
+                </div>
+
+                <!-- Add New Person Form -->
+                <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+                    <h4 class="text-white font-bold mb-3">Dodaj Osobę</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <input type="text"
+                               x-model="newPerson.name"
+                               @keydown.enter="addPerson()"
+                               placeholder="Imię"
+                               class="bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/50 outline-none">
+                        <input type="number"
+                               x-model="newPerson.targetCalories"
+                               @keydown.enter="addPerson()"
+                               placeholder="Cel kaloryczny (kcal/dzień)"
+                               min="1000"
+                               max="5000"
+                               class="bg-gray-900 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/50 outline-none">
+                        <button @click="addPerson()"
+                                :disabled="!newPerson.name || !newPerson.targetCalories || newPerson.targetCalories < 1000"
+                                class="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all">
+                            Dodaj
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">
+                        Max. 5 osób w planie • Zakres: 1000-5000 kcal/dzień
+                    </p>
+                </div>
+
+                <!-- Persons List -->
+                <div class="space-y-3">
+                    <h4 class="text-white font-bold">Osoby w Planie</h4>
+
+                    <div x-show="!selectedPlan?.persons || selectedPlan.persons.length === 0"
+                         class="text-center py-8 text-gray-400">
+                        Brak osób w planie. Dodaj pierwszą osobę powyżej!
+                    </div>
+
+                    <template x-for="person in selectedPlan?.persons || []" :key="person.id">
+                        <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4 hover:border-yellow-600/50 transition-all">
+                            <div class="flex items-center justify-between">
+                                <!-- Person Info -->
+                                <div class="flex-1" x-show="!person.editing">
+                                    <div class="flex items-center gap-3">
+                                        <div class="bg-yellow-600/20 text-yellow-400 w-10 h-10 rounded-full flex items-center justify-center font-bold">
+                                            <span x-text="person.name.charAt(0).toUpperCase()"></span>
+                                        </div>
+                                        <div>
+                                            <h5 class="text-white font-bold" x-text="person.name"></h5>
+                                            <p class="text-sm text-gray-400">
+                                                <span x-text="person.targetCalories"></span> kcal/dzień
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Edit Form -->
+                                <div class="flex-1" x-show="person.editing">
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="text"
+                                               x-model="person.name"
+                                               placeholder="Imię"
+                                               class="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:border-yellow-500 outline-none">
+                                        <input type="number"
+                                               x-model="person.targetCalories"
+                                               placeholder="Kalorie"
+                                               min="1000"
+                                               max="5000"
+                                               class="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:border-yellow-500 outline-none">
+                                    </div>
+                                </div>
+
+                                <!-- Actions -->
+                                <div class="flex items-center gap-2" x-show="!person.editing">
+                                    <button @click="person.editing = true"
+                                            class="text-blue-400 hover:text-blue-300 p-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                                        </svg>
+                                    </button>
+                                    <button @click="deletePerson(person.id)"
+                                            class="text-red-400 hover:text-red-300 p-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <!-- Edit Actions -->
+                                <div class="flex items-center gap-2" x-show="person.editing">
+                                    <button @click="updatePerson(person)"
+                                            class="text-green-400 hover:text-green-300 p-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    </button>
+                                    <button @click="person.editing = false; loadMealPlan(selectedPlan.id)"
+                                            class="text-gray-400 hover:text-gray-300 p-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t border-gray-700 px-6 py-4 flex justify-end">
+                <button @click="showPersonsModal = false"
+                        class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                    Zamknij
+                </button>
+            </div>
         </div>
     </div>
 

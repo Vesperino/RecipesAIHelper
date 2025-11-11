@@ -673,6 +673,361 @@ public class MealPlansController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Get all persons in a meal plan
+    /// GET /api/mealplans/{planId}/persons
+    /// </summary>
+    [HttpGet("{planId}/persons")]
+    public ActionResult<List<MealPlanPerson>> GetPersons(int planId)
+    {
+        try
+        {
+            var plan = _db.GetMealPlan(planId);
+            if (plan == null)
+                return NotFound(new { error = "Meal plan not found" });
+
+            var persons = _db.GetMealPlanPersons(planId);
+            return Ok(persons);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd pobierania osób: {ex.Message}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Add person to meal plan
+    /// POST /api/mealplans/{planId}/persons
+    /// Body: { "name": "Magda", "targetCalories": 2100 }
+    /// </summary>
+    [HttpPost("{planId}/persons")]
+    public ActionResult<MealPlanPerson> AddPerson(int planId, [FromBody] AddPersonRequest request)
+    {
+        try
+        {
+            var plan = _db.GetMealPlan(planId);
+            if (plan == null)
+                return NotFound(new { error = "Meal plan not found" });
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return BadRequest(new { error = "Person name is required" });
+
+            if (request.TargetCalories < 1000 || request.TargetCalories > 5000)
+                return BadRequest(new { error = "Target calories must be between 1000 and 5000" });
+
+            // Check if plan already has max persons (5)
+            var existingPersons = _db.GetMealPlanPersons(planId);
+            if (existingPersons.Count >= 5)
+                return BadRequest(new { error = "Maximum 5 persons per meal plan" });
+
+            // Check if person name already exists
+            if (existingPersons.Any(p => p.Name.Equals(request.Name, StringComparison.OrdinalIgnoreCase)))
+                return BadRequest(new { error = "Person with this name already exists in the plan" });
+
+            var person = new MealPlanPerson
+            {
+                MealPlanId = planId,
+                Name = request.Name,
+                TargetCalories = request.TargetCalories,
+                SortOrder = existingPersons.Count, // Add to end
+                CreatedAt = DateTime.Now
+            };
+
+            var personId = _db.CreateMealPlanPerson(person);
+            person.Id = personId;
+
+            Console.WriteLine($"👤 Dodano osobę: {person.Name} ({person.TargetCalories} kcal/dzień)");
+
+            return CreatedAtAction(nameof(GetPersons), new { planId }, person);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd dodawania osoby: {ex.Message}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Update person in meal plan
+    /// PUT /api/mealplans/{planId}/persons/{personId}
+    /// Body: { "name": "Magda", "targetCalories": 2200 }
+    /// </summary>
+    [HttpPut("{planId}/persons/{personId}")]
+    public ActionResult UpdatePerson(int planId, int personId, [FromBody] UpdatePersonRequest request)
+    {
+        try
+        {
+            var person = _db.GetMealPlanPersons(planId).FirstOrDefault(p => p.Id == personId);
+            if (person == null)
+                return NotFound(new { error = "Person not found" });
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                // Check for duplicate names
+                var existingPersons = _db.GetMealPlanPersons(planId);
+                if (existingPersons.Any(p => p.Id != personId && p.Name.Equals(request.Name, StringComparison.OrdinalIgnoreCase)))
+                    return BadRequest(new { error = "Person with this name already exists in the plan" });
+
+                person.Name = request.Name;
+            }
+
+            if (request.TargetCalories.HasValue)
+            {
+                if (request.TargetCalories.Value < 1000 || request.TargetCalories.Value > 5000)
+                    return BadRequest(new { error = "Target calories must be between 1000 and 5000" });
+
+                person.TargetCalories = request.TargetCalories.Value;
+            }
+
+            var success = _db.UpdateMealPlanPerson(person);
+            if (!success)
+                return StatusCode(500, new { error = "Failed to update person" });
+
+            Console.WriteLine($"✏️ Zaktualizowano osobę: {person.Name} ({person.TargetCalories} kcal/dzień)");
+
+            return Ok(new { message = "Person updated successfully", person });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd aktualizacji osoby: {ex.Message}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Delete person from meal plan (cascade deletes their scaled recipes)
+    /// DELETE /api/mealplans/{planId}/persons/{personId}
+    /// </summary>
+    [HttpDelete("{planId}/persons/{personId}")]
+    public ActionResult DeletePerson(int planId, int personId)
+    {
+        try
+        {
+            var person = _db.GetMealPlanPersons(planId).FirstOrDefault(p => p.Id == personId);
+            if (person == null)
+                return NotFound(new { error = "Person not found" });
+
+            var success = _db.DeleteMealPlanPerson(personId);
+            if (!success)
+                return StatusCode(500, new { error = "Failed to delete person" });
+
+            Console.WriteLine($"🗑️ Usunięto osobę: {person.Name}");
+
+            return Ok(new { message = "Person deleted successfully" });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd usuwania osoby: {ex.Message}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Scale recipe for all persons in meal plan
+    /// POST /api/mealplans/{planId}/entries/{entryId}/scale
+    /// </summary>
+    [HttpPost("{planId}/entries/{entryId}/scale")]
+    public async Task<ActionResult> ScaleRecipeForAllPersons(int planId, int entryId)
+    {
+        try
+        {
+            var plan = _db.GetMealPlan(planId);
+            if (plan == null)
+                return NotFound(new { error = "Meal plan not found" });
+
+            var persons = _db.GetMealPlanPersons(planId);
+            if (persons.Count == 0)
+                return BadRequest(new { error = "No persons in meal plan. Add persons first." });
+
+            // Get the entry and its recipe
+            MealPlanEntry? entry = null;
+            if (plan.Days != null)
+            {
+                foreach (var day in plan.Days)
+                {
+                    if (day.Entries != null)
+                    {
+                        entry = day.Entries.FirstOrDefault(e => e.Id == entryId);
+                        if (entry != null) break;
+                    }
+                }
+            }
+
+            if (entry == null)
+                return NotFound(new { error = "Entry not found" });
+
+            if (entry.Recipe == null)
+                return BadRequest(new { error = "Entry has no recipe" });
+
+            var recipe = entry.Recipe;
+            Console.WriteLine($"📊 Skalowanie przepisu '{recipe.Name}' dla {persons.Count} osób...");
+
+            // Get active AI provider for scaling service
+            var activeProvider = _aiFactory.GetActiveProvider();
+            if (activeProvider == null)
+                return BadRequest(new { error = "No active AI provider configured" });
+
+            // Get API key
+            string? apiKey = null;
+            var providerNameLower = activeProvider.Name.ToLowerInvariant();
+            if (providerNameLower == "openai")
+            {
+                apiKey = _db.GetSetting("OpenAI_ApiKey");
+            }
+            else if (providerNameLower == "gemini" || providerNameLower == "google")
+            {
+                apiKey = _db.GetSetting("Gemini_ApiKey");
+            }
+
+            if (string.IsNullOrEmpty(apiKey))
+                return BadRequest(new { error = "API key not configured. Configure it in Settings." });
+
+            // Check if this is a dessert
+            var isDessert = entry.MealType == MealType.Deser;
+
+            if (isDessert)
+            {
+                // Use DessertPlanningService
+                var dessertService = new DessertPlanningService(apiKey, activeProvider.Model);
+                var dessertPlan = await dessertService.PlanDessertAsync(recipe, persons);
+
+                Console.WriteLine($"🍰 Plan deseru: {dessertPlan.TotalPortions} porcji, {dessertPlan.DaysToSpread} dni");
+                Console.WriteLine($"   {dessertPlan.Explanation}");
+
+                // For desserts, create same portion for everyone
+                foreach (var person in persons)
+                {
+                    var scaledRecipe = new MealPlanRecipe
+                    {
+                        MealPlanEntryId = entryId,
+                        PersonId = person.Id,
+                        BaseRecipeId = recipe.Id,
+                        ScalingFactor = 1.0, // Same portion for everyone
+                        ScaledIngredients = new List<string> { recipe.Ingredients },
+                        ScaledCalories = dessertPlan.PortionCalories,
+                        ScaledProtein = recipe.Protein,
+                        ScaledCarbs = recipe.Carbohydrates,
+                        ScaledFat = recipe.Fat,
+                        CreatedAt = DateTime.Now
+                    };
+
+                    _db.CreateMealPlanRecipe(scaledRecipe);
+                    Console.WriteLine($"   ✓ {person.Name}: {dessertPlan.PortionCalories} kcal (1.0x)");
+                }
+
+                return Ok(new
+                {
+                    message = "Dessert planned successfully",
+                    recipeName = recipe.Name,
+                    isDessert = true,
+                    dessertPlan = new
+                    {
+                        totalPortions = dessertPlan.TotalPortions,
+                        portionCalories = dessertPlan.PortionCalories,
+                        daysToSpread = dessertPlan.DaysToSpread,
+                        explanation = dessertPlan.Explanation
+                    },
+                    scaledRecipes = persons.Count
+                });
+            }
+            else
+            {
+                // Regular recipe - scale for each person
+                var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
+
+                // Calculate average target calories to use as baseline
+                var avgCalories = persons.Average(p => p.TargetCalories);
+                var baselineCalories = recipe.Calories;
+
+                var scaledCount = 0;
+
+                foreach (var person in persons)
+                {
+                    // Calculate scaling factor based on person's calorie target
+                    var scalingFactor = person.TargetCalories / avgCalories;
+
+                    Console.WriteLine($"   → {person.Name}: współczynnik {scalingFactor:F2}");
+
+                    // Scale ingredients using AI
+                    var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
+                        recipe,
+                        scalingFactor,
+                        entry.MealType
+                    );
+
+                    if (scaledIngredients.Count == 0)
+                    {
+                        Console.WriteLine($"   ⚠️ Nie udało się przeskalować dla {person.Name}, używam bazowego przepisu");
+                        scaledIngredients = new List<string> { recipe.Ingredients };
+                    }
+
+                    // Calculate scaled nutrition
+                    var scaledCalories = (int)Math.Round(recipe.Calories * scalingFactor);
+                    var scaledProtein = recipe.Protein * scalingFactor;
+                    var scaledCarbs = recipe.Carbohydrates * scalingFactor;
+                    var scaledFat = recipe.Fat * scalingFactor;
+
+                    var scaledRecipe = new MealPlanRecipe
+                    {
+                        MealPlanEntryId = entryId,
+                        PersonId = person.Id,
+                        BaseRecipeId = recipe.Id,
+                        ScalingFactor = scalingFactor,
+                        ScaledIngredients = scaledIngredients,
+                        ScaledCalories = scaledCalories,
+                        ScaledProtein = scaledProtein,
+                        ScaledCarbs = scaledCarbs,
+                        ScaledFat = scaledFat,
+                        CreatedAt = DateTime.Now
+                    };
+
+                    _db.CreateMealPlanRecipe(scaledRecipe);
+                    scaledCount++;
+
+                    Console.WriteLine($"   ✓ {person.Name}: {scaledCalories} kcal ({scalingFactor:F2}x)");
+                }
+
+                return Ok(new
+                {
+                    message = "Recipe scaled successfully",
+                    recipeName = recipe.Name,
+                    isDessert = false,
+                    scaledRecipes = scaledCount,
+                    persons = persons.Select(p => new
+                    {
+                        name = p.Name,
+                        targetCalories = p.TargetCalories
+                    })
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd skalowania przepisu: {ex.Message}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get scaled recipes for a specific entry
+    /// GET /api/mealplans/{planId}/entries/{entryId}/scaled
+    /// </summary>
+    [HttpGet("{planId}/entries/{entryId}/scaled")]
+    public ActionResult GetScaledRecipes(int planId, int entryId)
+    {
+        try
+        {
+            var scaledRecipes = _db.GetMealPlanRecipes(entryId);
+            return Ok(scaledRecipes);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd pobierania przeskalowanych przepisów: {ex.Message}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
     private string GetDayOfWeekName(int dayOfWeek)
     {
         return dayOfWeek switch
@@ -725,4 +1080,16 @@ public class AutoGenerateRequest
     public bool UseCalorieTarget { get; set; } = false;
     public int TargetCalories { get; set; } = 1800;
     public int CalorieMargin { get; set; } = 200;
+}
+
+public class AddPersonRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public int TargetCalories { get; set; }
+}
+
+public class UpdatePersonRequest
+{
+    public string? Name { get; set; }
+    public int? TargetCalories { get; set; }
 }

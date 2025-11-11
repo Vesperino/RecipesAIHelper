@@ -132,6 +132,27 @@ Określ typ posiłku na podstawie składników i kontekstu:
 
 **Jeśli w PDF nie ma wyraźnej kategorii**, zdecyduj na podstawie powyższych zasad.
 
+### PODWÓJNA KATEGORIA (alternateMealType)
+
+⚠️ **NOWA FUNKCJA**: Jeśli przepis może być zarówno ŚNIADANIEM, jak i KOLACJĄ, podaj OBE kategorie!
+
+- **mealType**: Główna kategoria (najpopularniejsze użycie)
+- **alternateMealType**: Alternatywna kategoria (opcjonalne, jeśli przepis pasuje do 2 kategorii)
+
+**Przykłady przepisów z podwójną kategorią:**
+
+| Przepis | mealType | alternateMealType | Uzasadnienie |
+|---------|----------|-------------------|--------------|
+| Jogurt z owocami | ""Kolacja"" | ""Sniadanie"" | Może być lekką kolacją LUB częścią śniadania |
+| Jajka na twardo z warzywami | ""Kolacja"" | ""Sniadanie"" | Zależy od pory dnia i wielkości porcji |
+| Tost z awokado i jajkiem | ""Sniadanie"" | ""Kolacja"" | Substancjalne śniadanie LUB lekka kolacja |
+| Sałatka z kurczakiem | ""Kolacja"" | ""Obiad"" | Lekka kolacja LUB lekki obiad |
+| Omlet z warzywami | ""Sniadanie"" | ""Kolacja"" | Zależy od wielkości porcji |
+
+**ZASADA**: Jeśli przepis zawiera **tylko białko + warzywa** (bez dużej porcji węglowodanów), to prawdopodobnie może być **Śniadanie/Kolacja**.
+
+**Jeśli przepis pasuje TYLKO do jednej kategorii** (np. typowy obiad z mięsem, ziemniakami i sosem), zostaw `alternateMealType` jako `null`.
+
 ## DUPLIKATY{alreadyProcessedContext}{recentRecipesContext}
 
 ## WYMAGANE POLA
@@ -145,6 +166,7 @@ Określ typ posiłku na podstawie składników i kontekstu:
 - `carbohydrates`: węglowodany w gramach (double)
 - `fat`: tłuszcze w gramach (double)
 - `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj"" (patrz sekcja KATEGORYZACJA POSIŁKU)
+- `alternateMealType`: Alternatywna kategoria posiłku (nullable, np. ""Sniadanie"" jeśli główna to ""Kolacja"")
 - `servings`: liczba porcji (int, nullable)
 - `nutritionVariants`: WSZYSTKIE wiersze z tabeli
 
@@ -164,6 +186,7 @@ Zwróć TYLKO JSON (bez markdown, bez ```json):
       ""carbohydrates"": 19.0,
       ""fat"": 0.0,
       ""mealType"": ""Sniadanie"",
+      ""alternateMealType"": ""Kolacja"",
       ""servings"": 4,
       ""nutritionVariants"": [
         {{""label"": ""całość"", ""calories"": 366, ""protein"": 10.0, ""carbohydrates"": 76.0, ""fat"": 2.0, ""notes"": null}},
@@ -269,6 +292,27 @@ Określ typ posiłku na podstawie składników i kontekstu:
 
 **Jeśli w PDF nie ma wyraźnej kategorii**, zdecyduj na podstawie powyższych zasad.
 
+### PODWÓJNA KATEGORIA (alternateMealType)
+
+⚠️ **NOWA FUNKCJA**: Jeśli przepis może być zarówno ŚNIADANIEM, jak i KOLACJĄ, podaj OBE kategorie!
+
+- **mealType**: Główna kategoria (najpopularniejsze użycie)
+- **alternateMealType**: Alternatywna kategoria (opcjonalne, jeśli przepis pasuje do 2 kategorii)
+
+**Przykłady przepisów z podwójną kategorią:**
+
+| Przepis | mealType | alternateMealType | Uzasadnienie |
+|---------|----------|-------------------|--------------|
+| Jogurt z owocami | ""Kolacja"" | ""Sniadanie"" | Może być lekką kolacją LUB częścią śniadania |
+| Jajka na twardo z warzywami | ""Kolacja"" | ""Sniadanie"" | Zależy od pory dnia i wielkości porcji |
+| Tost z awokado i jajkiem | ""Sniadanie"" | ""Kolacja"" | Substancjalne śniadanie LUB lekka kolacja |
+| Sałatka z kurczakiem | ""Kolacja"" | ""Obiad"" | Lekka kolacja LUB lekki obiad |
+| Omlet z warzywami | ""Sniadanie"" | ""Kolacja"" | Zależy od wielkości porcji |
+
+**ZASADA**: Jeśli przepis zawiera **tylko białko + warzywa** (bez dużej porcji węglowodanów), to prawdopodobnie może być **Śniadanie/Kolacja**.
+
+**Jeśli przepis pasuje TYLKO do jednej kategorii** (np. typowy obiad z mięsem, ziemniakami i sosem), zostaw `alternateMealType` jako `null`.
+
 ## DUPLIKATY{recentRecipesContext}
 
 ## WYMAGANE POLA
@@ -282,6 +326,7 @@ Określ typ posiłku na podstawie składników i kontekstu:
 - `carbohydrates`: węglowodany w gramach (double)
 - `fat`: tłuszcze w gramach (double)
 - `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj"" (patrz sekcja KATEGORYZACJA POSIŁKU)
+- `alternateMealType`: Alternatywna kategoria posiłku (nullable, np. ""Sniadanie"" jeśli główna to ""Kolacja"")
 - `servings`: liczba porcji (int, nullable)
 - `nutritionVariants`: WSZYSTKIE wiersze z tabeli
 

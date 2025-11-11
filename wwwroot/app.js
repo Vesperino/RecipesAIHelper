@@ -130,6 +130,13 @@ function appData() {
         filterMealType: null,
         filteredMealPlanRecipes: [],
 
+        // Multi-person
+        showPersonsModal: false,
+        newPerson: {
+            name: '',
+            targetCalories: 2000
+        },
+
         // Notifications
         notifications: [],
 
@@ -1408,6 +1415,158 @@ function appData() {
             } catch (error) {
                 console.error('Error updating plan name:', error);
                 this.showNotification('Błąd aktualizacji nazwy: ' + error.message, 'error');
+            }
+        },
+
+        // Person management
+        async addPerson() {
+            if (!this.selectedPlan) return;
+            if (!this.newPerson.name.trim()) {
+                this.showNotification('Podaj imię osoby', 'error');
+                return;
+            }
+            if (!this.newPerson.targetCalories || this.newPerson.targetCalories < 1000 || this.newPerson.targetCalories > 5000) {
+                this.showNotification('Cel kaloryczny musi być w zakresie 1000-5000 kcal', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/persons`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: this.newPerson.name.trim(),
+                        targetCalories: this.newPerson.targetCalories
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to add person');
+                }
+
+                this.showNotification('Osoba dodana do planu', 'success');
+
+                // Reset form
+                this.newPerson.name = '';
+                this.newPerson.targetCalories = 2000;
+
+                // Reload plan to get updated persons list
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error adding person:', error);
+                this.showNotification('Błąd dodawania osoby: ' + error.message, 'error');
+            }
+        },
+
+        async updatePerson(person) {
+            if (!this.selectedPlan) return;
+            if (!person.name.trim()) {
+                this.showNotification('Podaj imię osoby', 'error');
+                return;
+            }
+            if (!person.targetCalories || person.targetCalories < 1000 || person.targetCalories > 5000) {
+                this.showNotification('Cel kaloryczny musi być w zakresie 1000-5000 kcal', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/persons/${person.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: person.name.trim(),
+                        targetCalories: person.targetCalories
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to update person');
+                }
+
+                this.showNotification('Osoba zaktualizowana', 'success');
+
+                // Exit edit mode
+                person.editing = false;
+
+                // Reload plan to get updated data
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error updating person:', error);
+                this.showNotification('Błąd aktualizacji osoby: ' + error.message, 'error');
+            }
+        },
+
+        async deletePerson(personId) {
+            if (!this.selectedPlan) return;
+            if (!confirm('Czy na pewno chcesz usunąć tę osobę? Wszystkie przeskalowane przepisy dla tej osoby zostaną usunięte.')) return;
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/persons/${personId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete person');
+
+                this.showNotification('Osoba usunięta', 'success');
+
+                // Reload plan to update persons list
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error deleting person:', error);
+                this.showNotification('Błąd usuwania osoby: ' + error.message, 'error');
+            }
+        },
+
+        async scaleRecipeForPlan(entryId) {
+            if (!this.selectedPlan) return;
+            if (!this.selectedPlan.persons || this.selectedPlan.persons.length === 0) {
+                this.showNotification('Dodaj osoby do planu przed skalowaniem', 'error');
+                return;
+            }
+
+            // Find the entry and mark as scaling
+            let entry = null;
+            for (const day of this.selectedPlan.days || []) {
+                if (day.entries) {
+                    entry = day.entries.find(e => e.id === entryId);
+                    if (entry) break;
+                }
+            }
+
+            if (!entry) return;
+
+            entry.scaling = true;
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/entries/${entryId}/scale`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to scale recipe');
+                }
+
+                const result = await response.json();
+
+                if (result.isDessert) {
+                    this.showNotification(`Deser przeskalowany: ${result.dessertPlan.explanation}`, 'success');
+                } else {
+                    this.showNotification(`Przepis przeskalowany dla ${result.scaledRecipes} osób`, 'success');
+                }
+
+                // Mark entry as scaled
+                entry.scaled = true;
+                entry.scaling = false;
+
+                // Optionally reload plan to get full data
+                // await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error scaling recipe:', error);
+                this.showNotification('Błąd skalowania: ' + error.message, 'error');
+                entry.scaling = false;
             }
         },
 

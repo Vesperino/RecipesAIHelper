@@ -54,6 +54,9 @@ public class Recipe
     // Meal category
     public MealType MealType { get; set; }
 
+    // Alternate meal category (e.g., can be both Sniadanie and Kolacja)
+    public MealType? AlternateMealType { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     // Image paths
