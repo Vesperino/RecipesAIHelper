@@ -2006,6 +2006,26 @@ function appData() {
                 });
         },
 
+        printMealPlanForPerson(personId) {
+            if (!this.selectedPlan) {
+                this.showNotification('Brak wybranego planu', 'error');
+                return;
+            }
+
+            const person = this.selectedPlan.persons?.find(p => p.id === personId);
+            if (!person) {
+                this.showNotification('Nie znaleziono osoby', 'error');
+                return;
+            }
+
+            const printWindow = window.open(`/api/print/meal-plan/${this.selectedPlan.id}/person/${personId}`, '_blank');
+            if (printWindow) {
+                printWindow.addEventListener('load', () => {
+                    setTimeout(() => printWindow.print(), 250);
+                });
+            }
+        },
+
         // ============== NOTIFICATIONS ==============
 
         showNotification(message, type = 'success') {

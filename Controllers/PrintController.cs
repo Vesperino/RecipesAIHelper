@@ -115,6 +115,36 @@ public class PrintController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Generate printable HTML for meal plan for specific person (with scaled recipes)
+    /// GET /api/print/meal-plan/{planId}/person/{personId}
+    /// </summary>
+    [HttpGet("meal-plan/{planId}/person/{personId}")]
+    public ActionResult GetMealPlanPersonPrintView(int planId, int personId)
+    {
+        try
+        {
+            var plan = _db.GetMealPlan(planId);
+            if (plan == null)
+                return NotFound(new { error = "Meal plan not found" });
+
+            if (plan.Days == null || plan.Days.Count == 0)
+                return BadRequest(new { error = "Meal plan has no days" });
+
+            // Get person
+            var person = _db.GetMealPlanPersons(planId).FirstOrDefault(p => p.Id == personId);
+            if (person == null)
+                return NotFound(new { error = "Person not found" });
+
+            var html = GenerateMealPlanPersonHtml(plan, person);
+            return Content(html, "text/html");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
     // HTML Generation Methods
 
     private string GenerateMealPlanTableHtml(Models.MealPlan plan)
@@ -435,5 +465,203 @@ public class PrintController : ControllerBase
         if (string.IsNullOrEmpty(text))
             return text;
         return char.ToUpper(text[0]) + text.Substring(1);
+    }
+
+    private string GenerateMealPlanPersonHtml(Models.MealPlan plan, Models.MealPlanPerson person)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html>");
+        sb.AppendLine("<head>");
+        sb.AppendLine("    <meta charset='utf-8'>");
+        sb.AppendLine($"    <title>{plan.Name} - {person.Name}</title>");
+        sb.AppendLine("    <style>");
+        sb.AppendLine("        @media print { @page { margin: 1.5cm; } .recipe-section { page-break-inside: avoid; } }");
+        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }");
+        sb.AppendLine("        .plan-header { text-align: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; }");
+        sb.AppendLine("        .plan-title { font-size: 32px; font-weight: bold; margin: 0 0 10px 0; }");
+        sb.AppendLine("        .person-info { font-size: 18px; margin: 5px 0; }");
+        sb.AppendLine("        .date-range { font-size: 14px; opacity: 0.9; }");
+        sb.AppendLine("        .day-section { margin-bottom: 40px; border: 2px solid #e0e0e0; border-radius: 8px; overflow: hidden; }");
+        sb.AppendLine("        .day-header { background: #f5f5f5; padding: 15px 20px; border-bottom: 2px solid #e0e0e0; }");
+        sb.AppendLine("        .day-title { font-size: 22px; font-weight: bold; color: #333; margin: 0; }");
+        sb.AppendLine("        .day-date { font-size: 14px; color: #666; margin-top: 5px; }");
+        sb.AppendLine("        .recipe-section { padding: 20px; border-bottom: 1px solid #e0e0e0; }");
+        sb.AppendLine("        .recipe-section:last-child { border-bottom: none; }");
+        sb.AppendLine("        .recipe-header { background: #4CAF50; color: white; padding: 12px 15px; margin: -20px -20px 15px -20px; }");
+        sb.AppendLine("        .recipe-title { font-size: 20px; font-weight: bold; margin: 0; }");
+        sb.AppendLine("        .recipe-meta { font-size: 13px; margin-top: 5px; opacity: 0.9; }");
+        sb.AppendLine("        .scaling-badge { display: inline-block; background: #FF9800; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 10px; }");
+        sb.AppendLine("        .section { margin-bottom: 20px; }");
+        sb.AppendLine("        .section-title { font-size: 16px; font-weight: bold; color: #2196F3; margin-bottom: 10px; border-bottom: 2px solid #2196F3; padding-bottom: 5px; }");
+        sb.AppendLine("        .nutrition { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }");
+        sb.AppendLine("        .nutrition-item { background: #f0f0f0; padding: 12px; border-radius: 6px; min-width: 100px; text-align: center; }");
+        sb.AppendLine("        .nutrition-label { font-size: 11px; color: #666; text-transform: uppercase; }");
+        sb.AppendLine("        .nutrition-value { font-size: 20px; font-weight: bold; color: #4CAF50; margin-top: 5px; }");
+        sb.AppendLine("        .ingredients { line-height: 1.8; white-space: pre-wrap; }");
+        sb.AppendLine("        .instructions { line-height: 1.6; white-space: pre-wrap; color: #444; }");
+        sb.AppendLine("    </style>");
+        sb.AppendLine("</head>");
+        sb.AppendLine("<body>");
+
+        // Header
+        sb.AppendLine("    <div class='plan-header'>");
+        sb.AppendLine($"        <div class='plan-title'>{plan.Name}</div>");
+        sb.AppendLine($"        <div class='person-info'>👤 {person.Name} | 🎯 {person.TargetCalories} kcal/dzień</div>");
+        sb.AppendLine($"        <div class='date-range'>{plan.StartDate:dd.MM.yyyy} - {plan.EndDate:dd.MM.yyyy}</div>");
+        sb.AppendLine("    </div>");
+
+        // Iterate through days
+        if (plan.Days != null)
+        {
+            foreach (var day in plan.Days.OrderBy(d => d.Date))
+            {
+                sb.AppendLine("    <div class='day-section'>");
+                sb.AppendLine("        <div class='day-header'>");
+                sb.AppendLine($"            <div class='day-title'>{GetDayOfWeekName(day.DayOfWeek)}</div>");
+                sb.AppendLine($"            <div class='day-date'>{day.Date:dd.MM.yyyy}</div>");
+                sb.AppendLine("        </div>");
+
+                if (day.Entries != null && day.Entries.Count > 0)
+                {
+                    foreach (var entry in day.Entries.OrderBy(e => e.MealType))
+                    {
+                        if (entry.Recipe == null) continue;
+
+                        // Find scaled recipe for this person
+                        var scaledRecipe = entry.ScaledRecipes?.FirstOrDefault(sr => sr.PersonId == person.Id);
+
+                        sb.AppendLine("        <div class='recipe-section'>");
+                        sb.AppendLine("            <div class='recipe-header'>");
+                        sb.AppendLine($"                <div class='recipe-title'>");
+                        sb.AppendLine($"                    {entry.Recipe.Name}");
+
+                        if (scaledRecipe != null && scaledRecipe.ScalingFactor != 1.0)
+                        {
+                            var percentage = (int)Math.Round((scaledRecipe.ScalingFactor - 1.0) * 100);
+                            var sign = percentage > 0 ? "+" : "";
+                            sb.AppendLine($"                    <span class='scaling-badge'>Przeskalowano {sign}{percentage}%</span>");
+                        }
+
+                        sb.AppendLine("                </div>");
+                        sb.AppendLine($"                <div class='recipe-meta'>{GetMealTypeName(entry.MealType)}");
+                        if (entry.Recipe.Servings.HasValue)
+                        {
+                            sb.AppendLine($" • {entry.Recipe.Servings} porcji");
+                        }
+                        sb.AppendLine("</div>");
+                        sb.AppendLine("            </div>");
+
+                        // Nutrition (scaled if available)
+                        sb.AppendLine("            <div class='section'>");
+                        sb.AppendLine("                <div class='section-title'>🔥 Wartości odżywcze (Twoja porcja)</div>");
+                        sb.AppendLine("                <div class='nutrition'>");
+
+                        if (scaledRecipe != null)
+                        {
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Kalorie</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledCalories}</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Białko</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledProtein:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Węglowodany</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledCarbs:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Tłuszcze</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledFat:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                        }
+                        else
+                        {
+                            // Fallback to base recipe
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Kalorie</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Calories}</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Białko</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Protein:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Węglowodany</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Carbohydrates:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Tłuszcze</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Fat:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                        }
+
+                        sb.AppendLine("                </div>");
+                        sb.AppendLine("            </div>");
+
+                        // Ingredients (scaled if available)
+                        if (!string.IsNullOrEmpty(entry.Recipe.Ingredients))
+                        {
+                            sb.AppendLine("            <div class='section'>");
+                            sb.AppendLine("                <div class='section-title'>🥘 Składniki (Twoja porcja)</div>");
+
+                            if (scaledRecipe?.ScaledIngredients != null && scaledRecipe.ScaledIngredients.Count > 0)
+                            {
+                                // Use scaled ingredients
+                                var scaledIngredientsText = string.Join("\n", scaledRecipe.ScaledIngredients);
+                                sb.AppendLine($"                <div class='ingredients'>{System.Security.SecurityElement.Escape(scaledIngredientsText)}</div>");
+                            }
+                            else
+                            {
+                                // Fallback to base ingredients
+                                sb.AppendLine($"                <div class='ingredients'>{System.Security.SecurityElement.Escape(entry.Recipe.Ingredients)}</div>");
+                            }
+
+                            sb.AppendLine("            </div>");
+                        }
+
+                        // Instructions (always from base recipe)
+                        if (!string.IsNullOrEmpty(entry.Recipe.Instructions))
+                        {
+                            sb.AppendLine("            <div class='section'>");
+                            sb.AppendLine("                <div class='section-title'>👨‍🍳 Sposób przygotowania</div>");
+                            sb.AppendLine($"                <div class='instructions'>{System.Security.SecurityElement.Escape(entry.Recipe.Instructions)}</div>");
+                            sb.AppendLine("            </div>");
+                        }
+
+                        sb.AppendLine("        </div>");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("        <div class='recipe-section'>");
+                    sb.AppendLine("            <p style='text-align: center; color: #999;'>Brak przepisów na ten dzień</p>");
+                    sb.AppendLine("        </div>");
+                }
+
+                sb.AppendLine("    </div>");
+            }
+        }
+
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+
+        return sb.ToString();
+    }
+
+    private string GetDayOfWeekName(int dayOfWeek)
+    {
+        return dayOfWeek switch
+        {
+            0 => "Poniedziałek",
+            1 => "Wtorek",
+            2 => "Środa",
+            3 => "Czwartek",
+            4 => "Piątek",
+            5 => "Sobota",
+            6 => "Niedziela",
+            _ => $"Dzień {dayOfWeek}"
+        };
     }
 }
