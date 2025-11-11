@@ -861,6 +861,46 @@
                 </div>
             </div>
 
+            <!-- Todoist Integration -->
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
+                <h2 class="text-2xl font-bold text-white mb-2">📋 Integracja z Todoist</h2>
+                <p class="text-gray-400 text-sm mb-6">Konfiguruj klucz API Todoist do exportu list zakupowych z jadłospisów.</p>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-white mb-2">Todoist API Key</label>
+                    <input type="password" x-model="todoistSettings.apiKey"
+                           placeholder="Wprowadź swój klucz API..."
+                           class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                    <p class="text-xs text-gray-400 mt-1">Używany do automatycznego tworzenia projektów i zadań w Todoist</p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="saveTodoistSettings()"
+                            :disabled="todoistSettingsSaving"
+                            :class="todoistSettingsSaving ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'"
+                            class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
+                        <span x-show="!todoistSettingsSaving">💾 Zapisz Klucz API</span>
+                        <span x-show="todoistSettingsSaving">⏳ Zapisywanie...</span>
+                    </button>
+                    <button @click="testTodoistConnection()"
+                            :disabled="todoistTestRunning || !todoistSettings.isConfigured"
+                            :class="(todoistTestRunning || !todoistSettings.isConfigured) ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'"
+                            class="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
+                        <span x-show="!todoistTestRunning">🧪 Testuj Połączenie</span>
+                        <span x-show="todoistTestRunning">⏳ Testowanie...</span>
+                    </button>
+                </div>
+
+                <div class="mt-4 bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+                    <p class="text-sm text-gray-300">
+                        <strong class="text-white">💡 Gdzie uzyskać klucz API:</strong><br>
+                        • Todoist: <a href="https://app.todoist.com/app/settings/integrations/developer" target="_blank" class="text-blue-400 hover:underline">app.todoist.com/app/settings/integrations/developer</a><br>
+                        • Znajdź sekcję "API token" i skopiuj swój token<br>
+                        • Token jest prywatny - nie udostępniaj go nikomu
+                    </p>
+                </div>
+            </div>
+
             <!-- AI Providers for Recipe Extraction -->
             <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
                 <h2 class="text-2xl font-bold text-white mb-2">🤖 Providery AI do Ekstrakcji Przepisów</h2>
@@ -1248,6 +1288,15 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
                             </svg>
                             Drukuj
+                        </button>
+                        <button @click="exportToTodoist()"
+                                :disabled="isExportingToTodoist || !todoistSettings.isConfigured"
+                                :class="(isExportingToTodoist || !todoistSettings.isConfigured) ? 'opacity-50 cursor-not-allowed' : 'hover:from-purple-700 hover:to-purple-800'"
+                                class="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" :class="isExportingToTodoist ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                            </svg>
+                            <span x-text="isExportingToTodoist ? 'Eksportowanie...' : 'Export do Todoist'"></span>
                         </button>
                     </div>
                 </div>

@@ -71,6 +71,15 @@ function appData() {
         imageSettingsSaving: false,
         imageSettingsTestRunning: false,
 
+        // Todoist integration
+        todoistSettings: {
+            isConfigured: false,
+            apiKey: '***'
+        },
+        todoistSettingsSaving: false,
+        todoistTestRunning: false,
+        isExportingToTodoist: false,
+
         // Meal Planner
         mealPlans: [],
         selectedPlan: null,
@@ -109,6 +118,7 @@ function appData() {
             await this.loadRecipes();
             await this.loadCurrentDirectory();
             await this.loadImageSettings();
+            await this.loadTodoistSettings();
             await this.loadMealPlans();
 
             // Restore last tab from localStorage
@@ -1014,6 +1024,104 @@ function appData() {
             } catch (error) {
                 console.error('Error saving model:', error);
                 this.showNotification('❌ Błąd zapisu modelu: ' + error.message, 'error');
+            }
+        },
+
+        // ============== TODOIST INTEGRATION ==============
+
+        async loadTodoistSettings() {
+            try {
+                const response = await fetch('/api/todoist/settings');
+                if (!response.ok) throw new Error('Failed to load Todoist settings');
+                this.todoistSettings = await response.json();
+            } catch (error) {
+                console.error('Error loading Todoist settings:', error);
+                // Use defaults if loading fails
+            }
+        },
+
+        async saveTodoistSettings() {
+            this.todoistSettingsSaving = true;
+            try {
+                const response = await fetch('/api/todoist/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: this.todoistSettings.apiKey
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to save Todoist settings');
+                }
+
+                await this.loadTodoistSettings();
+                this.showNotification('✅ Klucz API Todoist zapisany pomyślnie', 'success');
+            } catch (error) {
+                console.error('Error saving Todoist settings:', error);
+                this.showNotification('❌ Błąd zapisu: ' + error.message, 'error');
+            } finally {
+                this.todoistSettingsSaving = false;
+            }
+        },
+
+        async testTodoistConnection() {
+            this.todoistTestRunning = true;
+            try {
+                const response = await fetch('/api/todoist/test', {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Test failed');
+                }
+
+                const result = await response.json();
+                this.showNotification(`✅ Test zakończony sukcesem! Utworzono projekt testowy.`, 'success');
+            } catch (error) {
+                console.error('Error testing Todoist connection:', error);
+                this.showNotification('❌ Test nieudany: ' + error.message, 'error');
+            } finally {
+                this.todoistTestRunning = false;
+            }
+        },
+
+        async exportToTodoist() {
+            if (!this.selectedPlan || !this.selectedPlan.id) {
+                this.showNotification('❌ Nie wybrano planu', 'error');
+                return;
+            }
+
+            if (!this.todoistSettings.isConfigured) {
+                this.showNotification('❌ Skonfiguruj klucz API Todoist w Ustawieniach', 'error');
+                return;
+            }
+
+            this.isExportingToTodoist = true;
+            try {
+                const response = await fetch(`/api/todoist/export/${this.selectedPlan.id}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Export failed');
+                }
+
+                const result = await response.json();
+                this.showNotification(`✅ Wyeksportowano do Todoist! Utworzono ${result.tasksCreated} zadań.`, 'success');
+
+                // Optionally open Todoist project in new tab
+                if (result.projectUrl) {
+                    console.log(`📋 Link do projektu Todoist: ${result.projectUrl}`);
+                }
+            } catch (error) {
+                console.error('Error exporting to Todoist:', error);
+                this.showNotification('❌ Błąd exportu: ' + error.message, 'error');
+            } finally {
+                this.isExportingToTodoist = false;
             }
         },
 

@@ -130,6 +130,8 @@ Aplikacja oferuje pełny interfejs webowy z następującymi zakładkami:
    - Drukowanie planu
 
 4. **⚙️ Ustawienia**:
+   - **Klucze API**: Zarządzanie kluczami OpenAI i Google Gemini
+   - **Todoist Integration**: Konfiguracja klucza API Todoist do exportu list zakupowych
    - **AI Providers**: Zarządzanie providerami (OpenAI/Gemini), priorytety, modele
    - **Image Generation**: Konfiguracja DALL-E/Imagen, auto-save modeli, test generation
    - Wszystkie klucze API przechowywane bezpiecznie w bazie danych
@@ -145,6 +147,7 @@ RecipesAIHelper/
 │   ├── ImagesController.cs         # Generowanie obrazów
 │   ├── ImageSettingsController.cs  # Konfiguracja image generation
 │   ├── MealPlansController.cs      # Planowanie posiłków
+│   ├── TodoistController.cs        # Eksport do Todoist
 │   ├── FileUploadController.cs     # Upload plików
 │   └── PrintController.cs          # Drukowanie planów
 ├── Models/
@@ -166,7 +169,8 @@ RecipesAIHelper/
 │   ├── PdfImageService.cs          # PDF → Images (1200 DPI)
 │   ├── PdfDirectService.cs         # Direct PDF → Base64
 │   ├── PromptBuilder.cs            # Wspólne prompty
-│   └── ShoppingListService.cs      # Agregacja listy zakupów
+│   ├── ShoppingListService.cs      # Agregacja listy zakupów
+│   └── TodoistService.cs           # Todoist API integration
 ├── Data/
 │   └── RecipeDbContext.cs          # SQLite z migracjami
 ├── wwwroot/
@@ -278,10 +282,40 @@ Każdy przepis może mieć **wiele wariantów** wartości odżywczych:
 
 ## Integracja z Todoist
 
-Aby eksportować listę zakupów do Todoist:
-1. Uzyskaj klucz API z https://todoist.com/prefs/integrations
-2. Wprowadź go w interfejsie WWW podczas eksportu
-3. Lista zostanie dodana do Twojego Todoist
+Aplikacja umożliwia automatyczny eksport list zakupowych do Todoist, gdzie każdy składnik jest osobnym zadaniem pogrupowanym według kategorii.
+
+### Konfiguracja
+
+1. Przejdź do zakładki **⚙️ Ustawienia** w interfejsie WWW
+2. Znajdź sekcję **"📋 Integracja z Todoist"**
+3. Uzyskaj klucz API z [Todoist Developer Settings](https://app.todoist.com/app/settings/integrations/developer)
+4. Wklej klucz w pole "Todoist API Key" i kliknij **"Zapisz Klucz API"**
+5. (Opcjonalnie) Kliknij **"Testuj Połączenie"** aby sprawdzić czy klucz działa
+
+### Eksport listy zakupów
+
+1. Przejdź do zakładki **🍽️ Planer posiłków**
+2. Wybierz plan posiłków z listy
+3. Kliknij **"Generuj listę zakupów"** (jeśli jeszcze nie została wygenerowana)
+4. W oknie z listą zakupów kliknij przycisk **"Export do Todoist"**
+5. Lista zostanie automatycznie utworzona jako nowy projekt w Todoist
+
+### Struktura exportu
+
+- **Nazwa projektu**: `🛒 [Nazwa planu] (DD.MM - DD.MM)`
+- **Zadania**: Każdy składnik to osobne zadanie w formacie: `[Nazwa] - [Ilość]`
+- **Opisy zadań**: Zawierają kategorię składnika (warzywa, mięso, nabiał, etc.)
+- **Grupowanie**: Zadania automatycznie grupowane według kategorii
+
+### Przykład
+
+Dla planu "Plan na styczeń" obejmującego 01.01 - 07.01:
+- **Projekt Todoist**: `🛒 Plan na styczeń (01.01 - 07.01)`
+- **Zadania**:
+  - Pomidor - 500g (kategoria: warzywa)
+  - Pierś z kurczaka - 1kg (kategoria: mięso)
+  - Mleko - 1l (kategoria: nabiał)
+  - ... i więcej
 
 ## Licencja
 
