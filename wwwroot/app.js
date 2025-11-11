@@ -688,21 +688,16 @@ function appData() {
                 const query = this.searchQuery.toLowerCase();
                 filtered = filtered.filter(recipe => {
                     const mainTypeMatch = this.getMealTypeName(recipe.mealType).toLowerCase().includes(query);
-                    const altTypeMatch = recipe.alternateMealType !== null && recipe.alternateMealType !== undefined
-                        ? this.getMealTypeName(recipe.alternateMealType).toLowerCase().includes(query)
-                        : false;
                     return recipe.name.toLowerCase().includes(query) ||
                         recipe.description.toLowerCase().includes(query) ||
-                        mainTypeMatch ||
-                        altTypeMatch;
+                        mainTypeMatch;
                 });
             }
 
             // Apply meal type filter
             if (this.recipeFilters.mealTypes.length > 0) {
                 filtered = filtered.filter(recipe =>
-                    this.recipeFilters.mealTypes.includes(recipe.mealType) ||
-                    (recipe.alternateMealType !== null && recipe.alternateMealType !== undefined && this.recipeFilters.mealTypes.includes(recipe.alternateMealType))
+                    this.recipeFilters.mealTypes.includes(recipe.mealType)
                 );
             }
 

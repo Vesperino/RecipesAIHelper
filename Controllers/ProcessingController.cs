@@ -260,9 +260,7 @@ public class ProcessingController : ControllerBase
                             Protein = recipeData.Protein,
                             Carbohydrates = recipeData.Carbohydrates,
                             Fat = recipeData.Fat,
-                            MealType = Enum.TryParse<MealType>(recipeData.MealType, out var mealType)
-                                ? mealType
-                                : MealType.Obiad,
+                            MealType = ParseMealType(recipeData.MealType, recipeData.Name),
                             CreatedAt = DateTime.Now,
                             Servings = recipeData.Servings,
                             NutritionVariants = recipeData.NutritionVariants,
@@ -504,9 +502,7 @@ public class ProcessingController : ControllerBase
                             Protein = recipeData.Protein,
                             Carbohydrates = recipeData.Carbohydrates,
                             Fat = recipeData.Fat,
-                            MealType = Enum.TryParse<MealType>(recipeData.MealType, out var mealType)
-                                ? mealType
-                                : MealType.Obiad,
+                            MealType = ParseMealType(recipeData.MealType, recipeData.Name),
                             CreatedAt = DateTime.Now,
                             Servings = recipeData.Servings,
                             NutritionVariants = recipeData.NutritionVariants,
@@ -588,6 +584,61 @@ public class ProcessingController : ControllerBase
         {
             _isProcessing = false;
         }
+    }
+
+    /// <summary>
+    /// Parsuje MealType z normalizacją polskich znaków i logowaniem
+    /// </summary>
+    private MealType ParseMealType(string mealTypeString, string recipeName)
+    {
+        if (string.IsNullOrWhiteSpace(mealTypeString))
+        {
+            Console.WriteLine($"    ⚠️  UWAGA {recipeName}: Pusta wartość MealType - użyto Obiad");
+            return MealType.Obiad;
+        }
+
+        // Normalizacja polskich znaków (AI może zwrócić "Napój" zamiast "Napoj")
+        var normalized = mealTypeString
+            .Replace("ą", "a").Replace("Ą", "A")
+            .Replace("ć", "c").Replace("Ć", "C")
+            .Replace("ę", "e").Replace("Ę", "E")
+            .Replace("ł", "l").Replace("Ł", "L")
+            .Replace("ń", "n").Replace("Ń", "N")
+            .Replace("ó", "o").Replace("Ó", "O")
+            .Replace("ś", "s").Replace("Ś", "S")
+            .Replace("ź", "z").Replace("Ź", "Z")
+            .Replace("ż", "z").Replace("Ż", "Z")
+            .Trim();
+
+        // Próba parsowania z ignoreCase
+        if (Enum.TryParse<MealType>(normalized, ignoreCase: true, out var mealType))
+        {
+            Console.WriteLine($"    🔍 DEBUG {recipeName}: MealType z AI = '{mealTypeString}' → sparsowano jako {mealType} ({(int)mealType})");
+            return mealType;
+        }
+
+        // Fallback: mapowanie popularnych wartości
+        var lowerNormalized = normalized.ToLowerInvariant();
+        MealType result = lowerNormalized switch
+        {
+            "sniadanie" or "breakfast" => MealType.Sniadanie,
+            "obiad" or "lunch" or "dinner" => MealType.Obiad,
+            "kolacja" or "supper" => MealType.Kolacja,
+            "deser" or "dessert" => MealType.Deser,
+            "napoj" or "drink" or "beverage" => MealType.Napoj,
+            _ => MealType.Obiad
+        };
+
+        if (result == MealType.Obiad && lowerNormalized != "obiad" && lowerNormalized != "lunch" && lowerNormalized != "dinner")
+        {
+            Console.WriteLine($"    ⚠️  UWAGA {recipeName}: Nie można sparsować MealType '{mealTypeString}' (znormalizowane: '{normalized}') - użyto domyślnej wartości Obiad ({(int)result})");
+        }
+        else
+        {
+            Console.WriteLine($"    🔍 DEBUG {recipeName}: MealType z AI = '{mealTypeString}' → zmapowano jako {result} ({(int)result})");
+        }
+
+        return result;
     }
 
     private string CalculateFileChecksum(string filePath)

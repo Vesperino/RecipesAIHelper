@@ -654,8 +654,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15),
-                SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
+                SourcePdfFile = reader.FieldCount > 15 && !reader.IsDBNull(15) ? reader.GetString(15) : null,
+                AlternateMealType = reader.FieldCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null
             });
         }
 
@@ -703,8 +703,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15),
-                SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
+                SourcePdfFile = reader.FieldCount > 15 && !reader.IsDBNull(15) ? reader.GetString(15) : null,
+                AlternateMealType = reader.FieldCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null
             });
         }
 
@@ -744,8 +744,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = columnCount > 14 && !reader.IsDBNull(14) ? reader.GetString(14) : null,
-                AlternateMealType = columnCount > 15 && !reader.IsDBNull(15) ? (MealType?)reader.GetInt32(15) : null,
-                SourcePdfFile = columnCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
+                SourcePdfFile = columnCount > 15 && !reader.IsDBNull(15) ? reader.GetString(15) : null,
+                AlternateMealType = columnCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null
             };
 
             // Debug: Log first recipe's NutritionVariantsJson
@@ -823,8 +823,8 @@ public class RecipeDbContext : IDisposable
                     ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                     Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                     NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                    AlternateMealType = reader.FieldCount > 15 && !reader.IsDBNull(15) ? (MealType?)reader.GetInt32(15) : null,
-                    SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
+                    SourcePdfFile = reader.FieldCount > 15 && !reader.IsDBNull(15) ? reader.GetString(15) : null,
+                    AlternateMealType = reader.FieldCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null
                 };
             }
         }
@@ -866,8 +866,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15),
-                SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
+                SourcePdfFile = reader.FieldCount > 15 && !reader.IsDBNull(15) ? reader.GetString(15) : null,
+                AlternateMealType = reader.FieldCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null
             });
         }
 
@@ -1910,8 +1910,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = columnCount > 14 && !reader.IsDBNull(14) ? reader.GetString(14) : null,
-                AlternateMealType = columnCount > 15 && !reader.IsDBNull(15) ? (MealType?)reader.GetInt32(15) : null,
-                SourcePdfFile = columnCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
+                SourcePdfFile = columnCount > 15 && !reader.IsDBNull(15) ? reader.GetString(15) : null,
+                AlternateMealType = columnCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null
             });
         }
 
