@@ -75,6 +75,7 @@ public class OpenAIImageGenerationService : IImageGenerationService
                 // Build request following OpenAI Images API format
                 // https://platform.openai.com/docs/api-reference/images/create
                 // Note: DALL-E 2 doesn't support 'quality' parameter
+                // Note: GPT Image models (gpt-image-1, gpt-image-1-mini) don't support 'response_format' or 'quality'
                 object requestBody;
 
                 if (_model == "dall-e-2")
@@ -89,9 +90,20 @@ public class OpenAIImageGenerationService : IImageGenerationService
                         response_format = "b64_json"
                     };
                 }
+                else if (_model.StartsWith("gpt-image-"))
+                {
+                    // GPT Image models: no quality or response_format parameters
+                    requestBody = new
+                    {
+                        model = _model,
+                        prompt = prompt,
+                        n = 1,
+                        size = "1024x1024"
+                    };
+                }
                 else
                 {
-                    // DALL-E 3, GPT Image models: support quality parameter
+                    // DALL-E 3: support both quality and response_format parameters
                     requestBody = new
                     {
                         model = _model,
@@ -132,19 +144,36 @@ public class OpenAIImageGenerationService : IImageGenerationService
                 }
 
                 var imageData = imageResponse.Data[0];
-                if (string.IsNullOrEmpty(imageData.B64Json))
+
+                // Handle both base64 and URL responses
+                string? base64Image = null;
+
+                if (!string.IsNullOrEmpty(imageData.B64Json))
                 {
-                    Console.WriteLine("❌ Brak danych obrazu w odpowiedzi");
+                    // Direct base64 response (DALL-E with response_format=b64_json)
+                    base64Image = imageData.B64Json;
+                    Console.WriteLine($"✅ Obraz wygenerowany ({base64Image.Length} znaków base64)");
+                }
+                else if (!string.IsNullOrEmpty(imageData.Url))
+                {
+                    // URL response (GPT Image models) - download and convert to base64
+                    Console.WriteLine($"🌐 Pobieranie obrazu z URL: {imageData.Url}");
+                    var imageBytes = await _httpClient.GetByteArrayAsync(imageData.Url);
+                    base64Image = Convert.ToBase64String(imageBytes);
+                    Console.WriteLine($"✅ Obraz pobrany i skonwertowany ({base64Image.Length} znaków base64, {imageBytes.Length / 1024.0:F2} KB)");
+                }
+                else
+                {
+                    Console.WriteLine("❌ Brak danych obrazu w odpowiedzi (ani B64Json ani Url)");
                     return null;
                 }
 
-                Console.WriteLine($"✅ Obraz wygenerowany ({imageData.B64Json.Length} znaków base64)");
                 if (!string.IsNullOrEmpty(imageData.RevisedPrompt))
                 {
                     Console.WriteLine($"   Zmodyfikowany prompt: {imageData.RevisedPrompt}");
                 }
 
-                return imageData.B64Json;
+                return base64Image;
             }
             catch (Exception ex)
             {

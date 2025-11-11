@@ -125,8 +125,15 @@ Aplikacja oferuje pełny interfejs webowy z następującymi zakładkami:
        - Białko (0-200g)
        - Węglowodany (0-300g)
        - Tłuszcze (0-150g)
+     - **Sortowanie przepisów**:
+       - Po nazwie (A-Z / Z-A)
+       - Po kaloriach (rosnąco/malejąco)
+       - Po białku (rosnąco/malejąco)
+       - Po węglowodanach (rosnąco/malejąco)
+       - Po tłuszczach (rosnąco/malejąco)
+       - Przełącznik kierunku sortowania (⬆ Rosnąco / ⬇ Malejąco)
      - Aktywne filtry pokazywane w podsumowaniu
-     - Przycisk "Wyczyść wszystkie" do resetowania filtrów
+     - Przycisk "Wyczyść wszystkie" do resetowania filtrów i sortowania
    - Edycja wartości odżywczych i nutrition variants
    - Usuwanie niepotrzebnych przepisów
    - Generowanie obrazów dla przepisów

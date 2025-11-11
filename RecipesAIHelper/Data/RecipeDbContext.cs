@@ -492,6 +492,53 @@ public class RecipeDbContext : IDisposable
         return recipes;
     }
 
+    /// <summary>
+    /// Get recipes by meal type within a calorie range
+    /// </summary>
+    public List<Recipe> GetRecipesByCalorieRange(MealType mealType, int minCalories, int maxCalories)
+    {
+        var connection = GetConnection();
+
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT * FROM Recipes
+            WHERE MealType = @mealType
+            AND Calories >= @minCalories
+            AND Calories <= @maxCalories
+            ORDER BY RANDOM()
+        ";
+        command.Parameters.AddWithValue("@mealType", (int)mealType);
+        command.Parameters.AddWithValue("@minCalories", minCalories);
+        command.Parameters.AddWithValue("@maxCalories", maxCalories);
+
+        var recipes = new List<Recipe>();
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            recipes.Add(new Recipe
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+                Description = reader.GetString(2),
+                Ingredients = reader.GetString(3),
+                Instructions = reader.GetString(4),
+                Calories = reader.GetInt32(5),
+                Protein = reader.GetDouble(6),
+                Carbohydrates = reader.GetDouble(7),
+                Fat = reader.GetDouble(8),
+                MealType = (MealType)reader.GetInt32(9),
+                CreatedAt = DateTime.Parse(reader.GetString(10)),
+                ImagePath = reader.IsDBNull(11) ? null : reader.GetString(11),
+                ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
+                Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
+                NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14)
+            });
+        }
+
+        return recipes;
+    }
+
     public List<Recipe> GetAllRecipes()
     {
         var connection = GetConnection();

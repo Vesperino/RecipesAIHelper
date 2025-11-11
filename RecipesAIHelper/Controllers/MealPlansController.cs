@@ -318,6 +318,10 @@ public class MealPlansController : ControllerBase
             Console.WriteLine($"🎲 Auto-generowanie dla planu: {plan.Name}");
             Console.WriteLine($"   Kategorie: {string.Join(", ", request.Categories)}");
             Console.WriteLine($"   Na dzień: {request.PerDay} z każdej kategorii");
+            if (request.UseCalorieTarget)
+            {
+                Console.WriteLine($"   🎯 Optymalizacja kaloryczna: {request.TargetCalories} ± {request.CalorieMargin} kcal");
+            }
 
             var addedCount = 0;
             var warnings = new List<string>();
@@ -329,55 +333,25 @@ public class MealPlansController : ControllerBase
                 var dayName = GetDayOfWeekName(day.DayOfWeek);
                 var dayDate = day.Date.ToString("dd.MM");
 
-                // For each requested category
-                foreach (var categoryStr in request.Categories)
+                if (request.UseCalorieTarget)
                 {
-                    if (!Enum.TryParse<MealType>(categoryStr, true, out var mealType))
+                    // Calorie-optimized generation
+                    var result = GenerateCalorieOptimizedDay(day, request, dayName, dayDate);
+                    addedCount += result.AddedCount;
+                    if (result.Warning != null)
                     {
-                        Console.WriteLine($"⚠️ Nieznana kategoria: {categoryStr}");
-                        continue;
+                        warnings.Add(result.Warning);
                     }
-
-                    // Check how many recipes already exist for this day and category
-                    var existingCount = day.Entries?.Count(e => e.MealType == mealType) ?? 0;
-                    var needed = request.PerDay - existingCount;
-
-                    if (needed <= 0)
+                }
+                else
+                {
+                    // Standard random generation
+                    var result = GenerateStandardDay(day, request, dayName, dayDate);
+                    addedCount += result.AddedCount;
+                    if (result.MissingDetails != null && result.MissingDetails.Count > 0)
                     {
-                        Console.WriteLine($"   ✓ {dayName} ({dayDate}) - {categoryStr}: już ma {existingCount} przepisów (pomijam)");
-                        continue;
-                    }
-
-                    Console.WriteLine($"   → {dayName} ({dayDate}) - {categoryStr}: ma {existingCount}, dodaję {needed}");
-
-                    // Get random recipes for this category (only what's needed)
-                    var randomRecipes = _db.GetRandomRecipesByMealType(mealType, needed);
-
-                    if (randomRecipes.Count < needed)
-                    {
-                        // Not enough recipes for this category
-                        var missing = needed - randomRecipes.Count;
                         var dayKey = $"{dayName} ({dayDate})";
-
-                        if (!missingDetails.ContainsKey(dayKey))
-                            missingDetails[dayKey] = new List<string>();
-
-                        missingDetails[dayKey].Add($"{categoryStr} (brakuje {missing})");
-                    }
-
-                    foreach (var recipe in randomRecipes)
-                    {
-                        var entry = new MealPlanEntry
-                        {
-                            MealPlanDayId = day.Id,
-                            RecipeId = recipe.Id,
-                            MealType = mealType,
-                            Order = 0, // Will be auto-sorted by meal type
-                            CreatedAt = DateTime.Now
-                        };
-
-                        _db.CreateMealPlanEntry(entry);
-                        addedCount++;
+                        missingDetails[dayKey] = result.MissingDetails;
                     }
                 }
             }
@@ -407,7 +381,7 @@ public class MealPlansController : ControllerBase
             return Ok(new
             {
                 message = warnings.Count > 0
-                    ? $"Dodano {addedCount} przepisów, ale brakło niektórych kategorii"
+                    ? $"Dodano {addedCount} przepisów, ale wystąpiły ostrzeżenia"
                     : $"Auto-generowano {addedCount} przepisów",
                 addedCount,
                 warnings = warnings.Count > 0 ? warnings : null,
@@ -419,6 +393,143 @@ public class MealPlansController : ControllerBase
             Console.WriteLine($"❌ Błąd auto-generowania: {ex.Message}");
             return StatusCode(500, new { error = ex.Message });
         }
+    }
+
+    private (int AddedCount, List<string>? MissingDetails) GenerateStandardDay(MealPlanDay day, AutoGenerateRequest request, string dayName, string dayDate)
+    {
+        var addedCount = 0;
+        var missingDetails = new List<string>();
+
+        // For each requested category
+        foreach (var categoryStr in request.Categories)
+        {
+            if (!Enum.TryParse<MealType>(categoryStr, true, out var mealType))
+            {
+                Console.WriteLine($"⚠️ Nieznana kategoria: {categoryStr}");
+                continue;
+            }
+
+            // Check how many recipes already exist for this day and category
+            var existingCount = day.Entries?.Count(e => e.MealType == mealType) ?? 0;
+            var needed = request.PerDay - existingCount;
+
+            if (needed <= 0)
+            {
+                Console.WriteLine($"   ✓ {dayName} ({dayDate}) - {categoryStr}: już ma {existingCount} przepisów (pomijam)");
+                continue;
+            }
+
+            Console.WriteLine($"   → {dayName} ({dayDate}) - {categoryStr}: ma {existingCount}, dodaję {needed}");
+
+            // Get random recipes for this category (only what's needed)
+            var randomRecipes = _db.GetRandomRecipesByMealType(mealType, needed);
+
+            if (randomRecipes.Count < needed)
+            {
+                // Not enough recipes for this category
+                var missing = needed - randomRecipes.Count;
+                missingDetails.Add($"{categoryStr} (brakuje {missing})");
+            }
+
+            foreach (var recipe in randomRecipes)
+            {
+                var entry = new MealPlanEntry
+                {
+                    MealPlanDayId = day.Id,
+                    RecipeId = recipe.Id,
+                    MealType = mealType,
+                    Order = 0, // Will be auto-sorted by meal type
+                    CreatedAt = DateTime.Now
+                };
+
+                _db.CreateMealPlanEntry(entry);
+                addedCount++;
+            }
+        }
+
+        return (addedCount, missingDetails.Count > 0 ? missingDetails : null);
+    }
+
+    private (int AddedCount, string? Warning) GenerateCalorieOptimizedDay(MealPlanDay day, AutoGenerateRequest request, string dayName, string dayDate)
+    {
+        var addedCount = 0;
+        var targetCalories = request.TargetCalories;
+        var margin = request.CalorieMargin;
+
+        Console.WriteLine($"   🎯 {dayName} ({dayDate}): Optymalizacja dla {targetCalories} ± {margin} kcal");
+
+        // Calculate how many calories per category (distribute evenly)
+        var caloriesPerCategory = targetCalories / request.Categories.Count;
+
+        var selectedRecipes = new List<(Recipe Recipe, MealType MealType)>();
+        var totalCalories = 0;
+
+        foreach (var categoryStr in request.Categories)
+        {
+            if (!Enum.TryParse<MealType>(categoryStr, true, out var mealType))
+            {
+                Console.WriteLine($"⚠️ Nieznana kategoria: {categoryStr}");
+                continue;
+            }
+
+            // Get recipes in calorie range for this category
+            var minCal = Math.Max(0, caloriesPerCategory - margin);
+            var maxCal = caloriesPerCategory + margin;
+
+            var candidates = _db.GetRecipesByCalorieRange(mealType, minCal, maxCal);
+
+            if (candidates.Count == 0)
+            {
+                // Fallback: get any random recipe of this type
+                candidates = _db.GetRandomRecipesByMealType(mealType, 10);
+            }
+
+            if (candidates.Count == 0)
+            {
+                Console.WriteLine($"   ⚠️ Brak przepisów dla kategorii {categoryStr}");
+                continue;
+            }
+
+            // Select recipe closest to target
+            var bestRecipe = candidates.OrderBy(r => Math.Abs(r.Calories - caloriesPerCategory)).FirstOrDefault();
+
+            if (bestRecipe != null)
+            {
+                selectedRecipes.Add((bestRecipe, mealType));
+                totalCalories += bestRecipe.Calories;
+                Console.WriteLine($"      ✓ {categoryStr}: {bestRecipe.Name} ({bestRecipe.Calories} kcal)");
+            }
+        }
+
+        // Check if total is within acceptable range
+        var difference = Math.Abs(totalCalories - targetCalories);
+        var isWithinRange = difference <= margin;
+
+        Console.WriteLine($"   📊 Suma kalorii: {totalCalories} kcal (różnica: {(totalCalories - targetCalories):+#;-#;0} kcal)");
+
+        // Add selected recipes to the plan
+        foreach (var (recipe, mealType) in selectedRecipes)
+        {
+            var entry = new MealPlanEntry
+            {
+                MealPlanDayId = day.Id,
+                RecipeId = recipe.Id,
+                MealType = mealType,
+                Order = 0,
+                CreatedAt = DateTime.Now
+            };
+
+            _db.CreateMealPlanEntry(entry);
+            addedCount++;
+        }
+
+        string? warning = null;
+        if (!isWithinRange)
+        {
+            warning = $"⚠️ {dayName} ({dayDate}): Suma kalorii ({totalCalories} kcal) wykracza poza zakres {targetCalories} ± {margin} kcal";
+        }
+
+        return (addedCount, warning);
     }
 
     /// <summary>
@@ -598,4 +709,7 @@ public class AutoGenerateRequest
 {
     public List<string> Categories { get; set; } = new() { "Sniadanie", "Obiad", "Kolacja" };
     public int PerDay { get; set; } = 1;
+    public bool UseCalorieTarget { get; set; } = false;
+    public int TargetCalories { get; set; } = 1800;
+    public int CalorieMargin { get; set; } = 200;
 }

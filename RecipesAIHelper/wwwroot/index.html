@@ -386,6 +386,25 @@
                         </div>
                     </div>
 
+                    <!-- Sorting Options -->
+                    <div class="mt-4 pt-4 border-t border-gray-700">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Sortowanie</label>
+                        <div class="flex flex-wrap gap-3">
+                            <select x-model="recipeSorting.field" @change="applyRecipeFilters()"
+                                    class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="name">Nazwa</option>
+                                <option value="calories">Kalorie</option>
+                                <option value="protein">Białko</option>
+                                <option value="carbohydrates">Węglowodany</option>
+                                <option value="fat">Tłuszcze</option>
+                            </select>
+                            <button @click="toggleSortDirection()"
+                                    class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white rounded-lg px-4 py-2 text-sm transition-colors flex items-center gap-2">
+                                <span x-text="recipeSorting.direction === 'desc' ? '⬇ Malejąco' : '⬆ Rosnąco'"></span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Active Filters Summary -->
                     <div x-show="hasActiveFilters()" class="mt-4 pt-4 border-t border-gray-700">
                         <div class="flex flex-wrap gap-2 items-center">
@@ -610,7 +629,7 @@
                                 <span x-text="formatDate(plan.startDate)"></span> - <span x-text="formatDate(plan.endDate)"></span>
                             </p>
                             <div class="text-xs text-gray-500">
-                                <span x-text="plan.days?.length || 0"></span> dni
+                                <span x-text="calculateDaysBetween(plan.startDate, plan.endDate)"></span> dni
                             </div>
                             <div class="flex gap-2 mt-3">
                                 <button @click.stop="deleteMealPlan(plan.id)"
@@ -909,7 +928,7 @@
                                          @drop="draggedEntry ? dropEntryOnDay(day.id, $event) : dropRecipeOnDay(day.id, $event)">
 
                                         <!-- Show existing recipes for this day -->
-                                        <template x-for="entry in day.entries || []" :key="entry.id">
+                                        <template x-for="(entry, index) in day.entries || []" :key="entry.id">
                                             <div class="bg-gray-800 border border-gray-600 rounded-lg p-3 group hover:border-blue-500/50 transition-all cursor-move"
                                                  draggable="true"
                                                  @dragstart="startDragEntry(entry, day.id)"
@@ -930,6 +949,26 @@
                                                                 <p class="text-xs text-gray-400 mb-2" x-text="getMealTypeName(entry.mealType)"></p>
                                                             </div>
                                                             <div class="flex gap-2">
+                                                                <!-- Move up button -->
+                                                                <button @click="moveEntryUp(day.id, entry.id, index)"
+                                                                        :disabled="index === 0"
+                                                                        :class="index === 0 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-white'"
+                                                                        class="flex-shrink-0"
+                                                                        title="Przesuń w górę">
+                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                                                                    </svg>
+                                                                </button>
+                                                                <!-- Move down button -->
+                                                                <button @click="moveEntryDown(day.id, entry.id, index, day.entries.length)"
+                                                                        :disabled="index >= day.entries.length - 1"
+                                                                        :class="index >= day.entries.length - 1 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-white'"
+                                                                        class="flex-shrink-0"
+                                                                        title="Przesuń w dół">
+                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                                    </svg>
+                                                                </button>
                                                                 <button @click="viewRecipeDetails(entry.recipe)"
                                                                         class="text-blue-400 hover:text-blue-300 flex-shrink-0"
                                                                         title="Zobacz szczegóły">
@@ -1554,6 +1593,31 @@
                                placeholder="1"
                                class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
                         <p class="text-xs text-gray-400 mt-1">Ile przepisów z każdej kategorii na każdy dzień (1-5)</p>
+                    </div>
+
+                    <!-- Calorie Target Option -->
+                    <div class="pt-4 border-t border-gray-700">
+                        <label class="flex items-center gap-2 cursor-pointer mb-3">
+                            <input type="checkbox" x-model="autoGenerateForm.useCalorieTarget"
+                                   class="w-4 h-4 text-blue-600 bg-gray-900 border-gray-600 rounded focus:ring-2 focus:ring-blue-500">
+                            <span class="text-sm font-medium text-gray-300">Optymalizuj pod kątem kalorii</span>
+                        </label>
+
+                        <div x-show="autoGenerateForm.useCalorieTarget" x-transition class="space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Docelowa liczba kalorii na dzień</label>
+                                <input type="number" x-model="autoGenerateForm.targetCalories" min="500" max="5000" step="50"
+                                       placeholder="1800"
+                                       class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Margines błędu (± kcal)</label>
+                                <input type="number" x-model="autoGenerateForm.calorieMargin" min="50" max="500" step="50"
+                                       placeholder="200"
+                                       class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                                <p class="text-xs text-gray-400 mt-1">System znajdzie przepisy tak, aby całkowita kaloryczność mieściła się w zakresie ± margines błędu</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="flex gap-3 pt-4">

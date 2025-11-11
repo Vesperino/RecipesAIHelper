@@ -64,6 +64,12 @@ function appData() {
             fat: { min: 0, max: 150 }
         },
 
+        // Recipe sorting
+        recipeSorting: {
+            field: 'name',      // name, calories, protein, carbohydrates, fat
+            direction: 'asc'    // asc or desc
+        },
+
         // Image generation
         selectedRecipeIds: [],
         isGeneratingImages: false,
@@ -105,7 +111,10 @@ function appData() {
         },
         autoGenerateForm: {
             categories: ['Sniadanie', 'Obiad', 'Kolacja'],
-            perDay: 1
+            perDay: 1,
+            useCalorieTarget: false,
+            targetCalories: 1800,
+            calorieMargin: 200
         },
         shoppingList: null,
         isGeneratingShoppingList: false,
@@ -690,7 +699,40 @@ function appData() {
                 return true;
             });
 
+            // Apply sorting
+            filtered = this.sortRecipes(filtered);
+
             this.filteredRecipes = filtered;
+        },
+
+        sortRecipes(recipes) {
+            const field = this.recipeSorting.field;
+            const direction = this.recipeSorting.direction;
+
+            return recipes.sort((a, b) => {
+                let aValue, bValue;
+
+                if (field === 'name') {
+                    aValue = a.name.toLowerCase();
+                    bValue = b.name.toLowerCase();
+                } else {
+                    aValue = a[field] || 0;
+                    bValue = b[field] || 0;
+                }
+
+                if (aValue < bValue) {
+                    return direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        },
+
+        toggleSortDirection() {
+            this.recipeSorting.direction = this.recipeSorting.direction === 'asc' ? 'desc' : 'asc';
+            this.filterRecipes();
         },
 
         // Alias for filterRecipes() - called by range sliders
@@ -715,6 +757,10 @@ function appData() {
                 protein: { min: 0, max: 200 },
                 carbs: { min: 0, max: 300 },
                 fat: { min: 0, max: 150 }
+            };
+            this.recipeSorting = {
+                field: 'name',
+                direction: 'asc'
             };
             this.searchQuery = '';
             this.filterRecipes();
@@ -1408,6 +1454,34 @@ function appData() {
             }
         },
 
+        async moveEntryUp(dayId, entryId, currentIndex) {
+            if (currentIndex === 0) return; // Already at the top
+            await this.updateEntryOrder(dayId, entryId, currentIndex - 1);
+        },
+
+        async moveEntryDown(dayId, entryId, currentIndex, totalEntries) {
+            if (currentIndex >= totalEntries - 1) return; // Already at the bottom
+            await this.updateEntryOrder(dayId, entryId, currentIndex + 1);
+        },
+
+        async updateEntryOrder(dayId, entryId, newOrder) {
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${dayId}/entries/${entryId}/order`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newOrder })
+                });
+
+                if (!response.ok) throw new Error('Failed to update order');
+
+                // Reload the selected plan to show updated order
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error updating order:', error);
+                this.showNotification('Błąd zmiany kolejności: ' + error.message, 'error');
+            }
+        },
+
         startDragEntry(entry, dayId) {
             this.draggedEntry = entry;
             this.draggedFromDayId = dayId;
@@ -1581,6 +1655,15 @@ function appData() {
             if (!dateString) return '';
             const date = new Date(dateString);
             return date.toLocaleDateString('pl-PL', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        },
+
+        calculateDaysBetween(startDate, endDate) {
+            if (!startDate || !endDate) return 0;
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end day
+            return diffDays;
         },
 
         getMealTypeName(mealType) {
