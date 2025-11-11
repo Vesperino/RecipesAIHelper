@@ -1525,6 +1525,33 @@
                         Plan: <span class="text-white font-medium" x-text="shoppingList?.mealPlanName"></span> •
                         <span x-text="shoppingList?.recipeCount"></span> przepisów •
                         <span x-text="shoppingList?.itemCount"></span> pozycji
+                        <template x-if="shoppingList?.personsCount > 0">
+                            <span>
+                                • <span class="text-purple-400 font-medium">👥 <span x-text="shoppingList?.personsCount"></span> osób</span>
+                                <span class="text-purple-300">(przeskalowane składniki)</span>
+                            </span>
+                        </template>
+                    </div>
+
+                    <!-- Persons info (if multi-person plan) -->
+                    <div x-show="shoppingList?.personsCount > 0" class="mb-4 bg-purple-900/20 border border-purple-600/30 rounded-lg p-3">
+                        <div class="flex items-start gap-2">
+                            <svg class="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                            </svg>
+                            <div class="flex-1">
+                                <p class="text-sm text-purple-300 font-medium mb-1">Lista zakupów dla całej grupy:</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="person in shoppingList?.persons" :key="person.Name">
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-purple-800/30 border border-purple-600/30 rounded text-xs text-purple-200">
+                                            <span x-text="person.Name"></span>
+                                            <span class="text-purple-400" x-text="`(${person.TargetCalories} kcal)`"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                                <p class="text-xs text-purple-400 mt-2">✓ Ilości składników zostały zsumowane dla wszystkich osób</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Shopping list by category -->

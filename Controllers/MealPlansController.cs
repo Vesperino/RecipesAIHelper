@@ -318,7 +318,17 @@ public class MealPlansController : ControllerBase
             Console.WriteLine($"🎲 Auto-generowanie dla planu: {plan.Name}");
             Console.WriteLine($"   Kategorie: {string.Join(", ", request.Categories)}");
             Console.WriteLine($"   Na dzień: {request.PerDay} z każdej kategorii");
-            if (request.UseCalorieTarget)
+
+            // Check if plan has persons - if yes, override calorie target with max person calories
+            var planPersons = _db.GetMealPlanPersons(planId);
+            if (planPersons.Count > 0)
+            {
+                var maxCalories = planPersons.Max(p => p.TargetCalories);
+                request.TargetCalories = maxCalories;
+                request.UseCalorieTarget = true; // Force calorie optimization
+                Console.WriteLine($"   👥 Plan ma {planPersons.Count} osób - generuję dla najwyższej kaloryczności: {maxCalories} kcal");
+            }
+            else if (request.UseCalorieTarget)
             {
                 Console.WriteLine($"   🎯 Optymalizacja kaloryczna: {request.TargetCalories} ± {request.CalorieMargin} kcal");
             }
@@ -418,8 +428,10 @@ public class MealPlansController : ControllerBase
                                 }
                             }
 
-                            // Scale each entry
-                            var avgCalories = persons.Average(p => p.TargetCalories);
+                            // Scale each entry - use MAX calories as baseline
+                            // Recipes from DB are designed for max person, others get scaled DOWN
+                            var maxCalories = persons.Max(p => p.TargetCalories);
+                            Console.WriteLine($"   📊 Bazowa kaloryczność (osoba z max): {maxCalories} kcal");
 
                             foreach (var entry in allEntries)
                             {
@@ -461,7 +473,7 @@ public class MealPlansController : ControllerBase
 
                                         foreach (var person in persons)
                                         {
-                                            var scalingFactor = person.TargetCalories / avgCalories;
+                                            var scalingFactor = (double)person.TargetCalories / maxCalories;
                                             var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
                                                 entry.Recipe,
                                                 scalingFactor,
@@ -721,14 +733,34 @@ public class MealPlansController : ControllerBase
             if (shoppingList == null)
                 return NotFound(new { error = "No shopping list found for this meal plan" });
 
+            // Get persons count for UI display
+            var hasPersons = plan.Persons != null && plan.Persons.Count > 0;
+
+            // Count recipes in plan
+            var recipeCount = 0;
+            if (plan.Days != null)
+            {
+                foreach (var day in plan.Days)
+                {
+                    if (day.Entries != null)
+                    {
+                        recipeCount += day.Entries.Count;
+                    }
+                }
+            }
+
             return Ok(new
             {
                 id = shoppingList.Id,
                 mealPlanId = shoppingList.MealPlanId,
                 mealPlanName = plan.Name,
+                recipeCount,
                 generatedAt = shoppingList.GeneratedAt,
                 itemCount = shoppingList.Items?.Count ?? 0,
-                items = shoppingList.Items
+                items = shoppingList.Items,
+                personsCount = plan.Persons?.Count ?? 0,
+                usesScaledIngredients = hasPersons,
+                persons = plan.Persons?.Select(p => new { p.Name, p.TargetCalories }).ToList()
             });
         }
         catch (Exception ex)
@@ -756,6 +788,14 @@ public class MealPlansController : ControllerBase
 
             Console.WriteLine($"🛒 Generowanie listy zakupowej dla planu: {plan.Name}");
 
+            // Check if plan has persons (multi-person mode)
+            var hasPersons = plan.Persons != null && plan.Persons.Count > 0;
+
+            if (hasPersons)
+            {
+                Console.WriteLine($"   👥 Plan ma {plan.Persons!.Count} osób - używam przeskalowanych składników");
+            }
+
             // Collect all recipes from all days
             var allRecipes = new List<Recipe>();
             foreach (var day in plan.Days)
@@ -764,8 +804,52 @@ public class MealPlansController : ControllerBase
                 {
                     foreach (var entry in day.Entries)
                     {
-                        if (entry.Recipe != null)
+                        if (entry.Recipe == null) continue;
+
+                        // If plan has persons and entry has scaled recipes, use scaled ingredients
+                        if (hasPersons && entry.ScaledRecipes != null && entry.ScaledRecipes.Count > 0)
                         {
+                            // Aggregate scaled ingredients from all persons for this entry
+                            var allScaledIngredients = new List<string>();
+
+                            foreach (var scaledRecipe in entry.ScaledRecipes)
+                            {
+                                if (scaledRecipe.ScaledIngredients != null && scaledRecipe.ScaledIngredients.Count > 0)
+                                {
+                                    var personName = scaledRecipe.Person?.Name ?? "Osoba";
+
+                                    // Add header for this person (for AI context)
+                                    allScaledIngredients.Add($"=== {personName} (porcja przeskalowana) ===");
+                                    allScaledIngredients.AddRange(scaledRecipe.ScaledIngredients);
+                                    allScaledIngredients.Add(""); // Empty line for separation
+                                }
+                            }
+
+                            if (allScaledIngredients.Count > 0)
+                            {
+                                // Create pseudo-Recipe with aggregated scaled ingredients
+                                var pseudoRecipe = new Recipe
+                                {
+                                    Id = entry.Recipe.Id,
+                                    Name = entry.Recipe.Name,
+                                    Ingredients = string.Join("\n", allScaledIngredients),
+                                    Calories = entry.Recipe.Calories,
+                                    MealType = entry.Recipe.MealType
+                                };
+
+                                allRecipes.Add(pseudoRecipe);
+                                Console.WriteLine($"      ✓ {entry.Recipe.Name}: używam składników dla {entry.ScaledRecipes.Count} osób");
+                            }
+                            else
+                            {
+                                // Fallback to base recipe if scaled ingredients are empty
+                                allRecipes.Add(entry.Recipe);
+                                Console.WriteLine($"      ⚠️ {entry.Recipe.Name}: brak przeskalowanych składników, używam bazowych");
+                            }
+                        }
+                        else
+                        {
+                            // Use base recipe (no persons or no scaled recipes)
                             allRecipes.Add(entry.Recipe);
                         }
                     }
@@ -822,7 +906,10 @@ public class MealPlansController : ControllerBase
                 recipeCount = allRecipes.Count,
                 itemCount = shoppingList.Items.Count,
                 generatedAt = savedList.GeneratedAt,
-                items = shoppingList.Items
+                items = shoppingList.Items,
+                personsCount = plan.Persons?.Count ?? 0,
+                usesScaledIngredients = hasPersons,
+                persons = plan.Persons?.Select(p => new { p.Name, p.TargetCalories }).ToList()
             });
         }
         catch (Exception ex)
@@ -1095,16 +1182,19 @@ public class MealPlansController : ControllerBase
                 // Regular recipe - scale for each person
                 var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
 
-                // Calculate average target calories to use as baseline
-                var avgCalories = persons.Average(p => p.TargetCalories);
+                // Use MAX calories as baseline - recipes from DB are for max person
+                // Others get scaled DOWN (scalingFactor <= 1.0)
+                var maxCalories = persons.Max(p => p.TargetCalories);
                 var baselineCalories = recipe.Calories;
+
+                Console.WriteLine($"   📊 Bazowa kaloryczność (osoba z max): {maxCalories} kcal");
 
                 var scaledCount = 0;
 
                 foreach (var person in persons)
                 {
-                    // Calculate scaling factor based on person's calorie target
-                    var scalingFactor = person.TargetCalories / avgCalories;
+                    // Calculate scaling factor - max person gets 1.0, others get < 1.0
+                    var scalingFactor = (double)person.TargetCalories / maxCalories;
 
                     Console.WriteLine($"   → {person.Name}: współczynnik {scalingFactor:F2}");
 
