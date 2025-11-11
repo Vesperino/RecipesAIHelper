@@ -59,6 +59,9 @@ dlldata.c
 # Debug images folder (generated during PDF processing)
 zdj/
 
+# Generated recipe images (AI-generated)
+wwwroot/images/
+
 # Logs
 *.log
 
