@@ -66,6 +66,38 @@ public class RecipesController : ControllerBase
         }
     }
 
+    [HttpPost]
+    public ActionResult CreateRecipe([FromBody] Recipe recipe)
+    {
+        try
+        {
+            // Set creation timestamp
+            recipe.CreatedAt = DateTime.Now;
+
+            // Insert recipe into database
+            _db.InsertRecipe(recipe);
+
+            // Get the created recipe with its ID
+            var recipes = _db.GetAllRecipes();
+            var createdRecipe = recipes.FirstOrDefault(r =>
+                r.Name == recipe.Name &&
+                r.Calories == recipe.Calories &&
+                r.MealType == recipe.MealType);
+
+            if (createdRecipe == null)
+                return StatusCode(500, new { error = "Recipe created but could not be retrieved" });
+
+            Console.WriteLine($"✅ Utworzono przepis: {createdRecipe.Name} (ID: {createdRecipe.Id})");
+
+            return CreatedAtAction(nameof(GetById), new { id = createdRecipe.Id }, createdRecipe);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd tworzenia przepisu: {ex.Message}");
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
     [HttpPut("{id}")]
     public ActionResult UpdateRecipe(int id, [FromBody] Recipe recipe)
     {

@@ -1132,7 +1132,7 @@ public class RecipeDbContext : IDisposable
     {
         var connection = GetConnection();
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT * FROM MealPlanDays WHERE MealPlanId = @mealPlanId ORDER BY DayOfWeek";
+        command.CommandText = "SELECT * FROM MealPlanDays WHERE MealPlanId = @mealPlanId ORDER BY Date";
         command.Parameters.AddWithValue("@mealPlanId", mealPlanId);
 
         var days = new List<MealPlanDay>();

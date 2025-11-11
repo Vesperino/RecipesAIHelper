@@ -153,32 +153,44 @@ public class PrintController : ControllerBase
         sb.AppendLine("        </tr>");
         sb.AppendLine("        <tr>");
 
-        // Group days by week
-        var sortedDays = plan.Days.OrderBy(d => d.Date).ToList();
-        foreach (var day in sortedDays)
+        // Create a dictionary for quick lookup of days by DayOfWeek
+        var daysByDayOfWeek = plan.Days.ToDictionary(d => d.DayOfWeek);
+
+        // Iterate through all 7 days of the week (0 = Monday, 6 = Sunday)
+        for (int dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++)
         {
             sb.AppendLine("            <td>");
-            sb.AppendLine($"                <div style='font-weight: bold; margin-bottom: 8px;'>{day.Date:dd.MM}</div>");
 
-            if (day.Entries != null && day.Entries.Any())
+            if (daysByDayOfWeek.TryGetValue(dayOfWeek, out var day))
             {
-                var groupedByMealType = day.Entries
-                    .OrderBy(e => e.MealType)
-                    .GroupBy(e => e.MealType);
+                // Day exists in plan - show date and recipes
+                sb.AppendLine($"                <div style='font-weight: bold; margin-bottom: 8px;'>{day.Date:dd.MM}</div>");
 
-                foreach (var group in groupedByMealType)
+                if (day.Entries != null && day.Entries.Any())
                 {
-                    foreach (var entry in group)
+                    var groupedByMealType = day.Entries
+                        .OrderBy(e => e.MealType)
+                        .GroupBy(e => e.MealType);
+
+                    foreach (var group in groupedByMealType)
                     {
-                        if (entry.Recipe != null)
+                        foreach (var entry in group)
                         {
-                            sb.AppendLine($"                <div class='recipe-item'>");
-                            sb.AppendLine($"                    <div class='meal-type'>{GetMealTypeName(entry.MealType)}</div>");
-                            sb.AppendLine($"                    {entry.Recipe.Name}");
-                            sb.AppendLine($"                </div>");
+                            if (entry.Recipe != null)
+                            {
+                                sb.AppendLine($"                <div class='recipe-item'>");
+                                sb.AppendLine($"                    <div class='meal-type'>{GetMealTypeName(entry.MealType)}</div>");
+                                sb.AppendLine($"                    {entry.Recipe.Name}");
+                                sb.AppendLine($"                </div>");
+                            }
                         }
                     }
                 }
+            }
+            else
+            {
+                // Day doesn't exist in plan - show empty cell
+                sb.AppendLine("                &nbsp;");
             }
 
             sb.AppendLine("            </td>");

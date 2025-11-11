@@ -103,6 +103,10 @@ function appData() {
         showCreatePlanModal: false,
         showShoppingListModal: false,
         showAutoGenerateModal: false,
+        showEditRecipeModal: false,
+        showCreateRecipeModal: false,
+        editingRecipe: null,
+        newRecipe: null,
         createPlanForm: {
             name: '',
             startDate: '',
@@ -794,8 +798,7 @@ function appData() {
         },
 
         editRecipe(recipe) {
-            // TODO: Implement recipe editing
-            this.showNotification('Edycja przepisów będzie dostępna wkrótce', 'error');
+            this.openEditRecipeModal(recipe);
         },
 
         async deleteRecipe(id) {
@@ -1636,6 +1639,95 @@ function appData() {
             }
 
             this.filteredMealPlanRecipes = filtered;
+        },
+
+        openEditRecipeModal(recipe) {
+            // Create a deep copy to avoid modifying the original
+            this.editingRecipe = {
+                id: recipe.id,
+                name: recipe.name,
+                description: recipe.description || '',
+                ingredients: recipe.ingredients || '',
+                instructions: recipe.instructions || '',
+                calories: recipe.calories || 0,
+                protein: recipe.protein || 0,
+                carbohydrates: recipe.carbohydrates || 0,
+                fat: recipe.fat || 0,
+                mealType: recipe.mealType,
+                servings: recipe.servings || null
+            };
+            this.showEditRecipeModal = true;
+        },
+
+        async saveRecipeEdit() {
+            try {
+                const response = await fetch(`/api/recipes/${this.editingRecipe.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.editingRecipe)
+                });
+
+                if (!response.ok) throw new Error('Failed to update recipe');
+
+                this.showNotification('Przepis zaktualizowany!', 'success');
+                this.showEditRecipeModal = false;
+
+                // Reload the current plan to show updated recipe
+                if (this.selectedPlan) {
+                    await this.selectMealPlan(this.selectedPlan.id);
+                }
+
+                // Also reload all recipes
+                await this.loadRecipes();
+            } catch (error) {
+                console.error('Error updating recipe:', error);
+                this.showNotification('Błąd aktualizacji przepisu: ' + error.message, 'error');
+            }
+        },
+
+        openCreateRecipeModal() {
+            // Initialize new recipe with default values
+            this.newRecipe = {
+                name: '',
+                description: '',
+                ingredients: '',
+                instructions: '',
+                calories: 0,
+                protein: 0,
+                carbohydrates: 0,
+                fat: 0,
+                mealType: 0, // Śniadanie
+                servings: null
+            };
+            this.showCreateRecipeModal = true;
+        },
+
+        async saveNewRecipe() {
+            try {
+                const response = await fetch('/api/recipes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.newRecipe)
+                });
+
+                if (!response.ok) throw new Error('Failed to create recipe');
+
+                const createdRecipe = await response.json();
+
+                this.showNotification(`Przepis "${createdRecipe.name}" został dodany!`, 'success');
+                this.showCreateRecipeModal = false;
+
+                // Reload all recipes
+                await this.loadRecipes();
+
+                // If we're in meal planner, reload the available recipes
+                if (this.currentTab === 'meal-planner') {
+                    this.filterMealPlanRecipes();
+                }
+            } catch (error) {
+                console.error('Error creating recipe:', error);
+                this.showNotification('Błąd tworzenia przepisu: ' + error.message, 'error');
+            }
         },
 
         getDayOfWeekName(dayOfWeek) {

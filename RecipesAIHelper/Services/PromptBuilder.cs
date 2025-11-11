@@ -101,6 +101,37 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 ""instructions"": ""1. W wysokiej misce mieszamy mąkę z przyprawami i ciepłą wodą.\n2. Posypujemy blat mąką i wałkujemy ciasto.\n3. Smażymy na patelni z dwóch stron.""
 ```
 
+## KATEGORYZACJA POSIŁKU (mealType)
+
+Określ typ posiłku na podstawie składników i kontekstu:
+
+- **Sniadanie**: Potrawy z węglowodanami złożonymi (owsianka, płatki, pieczywo pełnoziarniste) + białko + zdrowe tłuszcze. Cel: energia na cały dzień.
+  Przykłady: Jajecznica z pieczywem, omlet z warzywami, owsianka z orzechami, jogurt z granolą, tosty z awokado.
+
+- **Obiad**: Główny posiłek dnia - ciepłe dania wieloskładnikowe z mięsem/rybą/roślinami strączkowymi + duża porcja węglowodanów + warzywa.
+  Przykłady: Kotlet schabowy z ziemniakami, kurczak z ryżem, makaron z sosem, zupa krem z chlebem.
+
+- **Kolacja**: Lekkostrawne białko w małych porcjach + warzywa + niewielka ilość węglowodanów. Cel: łatwe trawienie przed snem.
+  Przykłady: Sałatka z tuńczykiem, jajko na twardo z warzywami, jogurt z owocami, serek wiejski z pomidorem, kanapka z chudym mięsem.
+
+- **Deser**: Słodkie wypieki, desery, lody, ciasta, przekąski bez składników obiadowych.
+
+- **Napoj**: Koktajle, smoothie, napoje, soki.
+
+### KLUCZOWE RÓŻNICE Śniadanie vs. Kolacja:
+
+| Cecha | Śniadanie | Kolacja |
+|-------|-----------|---------|
+| **Porcja białka** | Średnia/duża (np. 2-3 jajka) | Mała (np. 1 jajko, 100g serka) |
+| **Węglowodany** | Duża ilość (pieczywo, płatki) | Mała ilość lub brak |
+| **Forma białka** | Jajecznica, omlet, pasta jajeczna | Jajko na twardo w sałatce, serek jako dodatek |
+| **Temperatura** | Często ciepłe | Często zimne/lekkie |
+| **Komponowanie** | Substancjalne, energetyczne | Lekkostrawne, niewielkie porcje |
+
+**WAŻNE**: Wiele produktów białkowych (jajka, nabiał, drób, ryby) może być zarówno na śniadanie, jak i kolację. Decyduj na podstawie FORMY PODANIA i WIELKOŚCI PORCJI, nie samych składników!
+
+**Jeśli w PDF nie ma wyraźnej kategorii**, zdecyduj na podstawie powyższych zasad.
+
 ## DUPLIKATY{alreadyProcessedContext}{recentRecipesContext}
 
 ## WYMAGANE POLA
@@ -113,7 +144,7 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 - `protein`: białko w gramach (double)
 - `carbohydrates`: węglowodany w gramach (double)
 - `fat`: tłuszcze w gramach (double)
-- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj""
+- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj"" (patrz sekcja KATEGORYZACJA POSIŁKU)
 - `servings`: liczba porcji (int, nullable)
 - `nutritionVariants`: WSZYSTKIE wiersze z tabeli
 
@@ -207,6 +238,37 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 ""instructions"": ""1. Mieszamy składniki.\n2. Formujemy ciasto.\n3. Pieczemy.""
 ```
 
+## KATEGORYZACJA POSIŁKU (mealType)
+
+Określ typ posiłku na podstawie składników i kontekstu:
+
+- **Sniadanie**: Potrawy z węglowodanami złożonymi (owsianka, płatki, pieczywo pełnoziarniste) + białko + zdrowe tłuszcze. Cel: energia na cały dzień.
+  Przykłady: Jajecznica z pieczywem, omlet z warzywami, owsianka z orzechami, jogurt z granolą, tosty z awokado.
+
+- **Obiad**: Główny posiłek dnia - ciepłe dania wieloskładnikowe z mięsem/rybą/roślinami strączkowymi + duża porcja węglowodanów + warzywa.
+  Przykłady: Kotlet schabowy z ziemniakami, kurczak z ryżem, makaron z sosem, zupa krem z chlebem.
+
+- **Kolacja**: Lekkostrawne białko w małych porcjach + warzywa + niewielka ilość węglowodanów. Cel: łatwe trawienie przed snem.
+  Przykłady: Sałatka z tuńczykiem, jajko na twardo z warzywami, jogurt z owocami, serek wiejski z pomidorem, kanapka z chudym mięsem.
+
+- **Deser**: Słodkie wypieki, desery, lody, ciasta, przekąski bez składników obiadowych.
+
+- **Napoj**: Koktajle, smoothie, napoje, soki.
+
+### KLUCZOWE RÓŻNICE Śniadanie vs. Kolacja:
+
+| Cecha | Śniadanie | Kolacja |
+|-------|-----------|---------|
+| **Porcja białka** | Średnia/duża (np. 2-3 jajka) | Mała (np. 1 jajko, 100g serka) |
+| **Węglowodany** | Duża ilość (pieczywo, płatki) | Mała ilość lub brak |
+| **Forma białka** | Jajecznica, omlet, pasta jajeczna | Jajko na twardo w sałatce, serek jako dodatek |
+| **Temperatura** | Często ciepłe | Często zimne/lekkie |
+| **Komponowanie** | Substancjalne, energetyczne | Lekkostrawne, niewielkie porcje |
+
+**WAŻNE**: Wiele produktów białkowych (jajka, nabiał, drób, ryby) może być zarówno na śniadanie, jak i kolację. Decyduj na podstawie FORMY PODANIA i WIELKOŚCI PORCJI, nie samych składników!
+
+**Jeśli w PDF nie ma wyraźnej kategorii**, zdecyduj na podstawie powyższych zasad.
+
 ## DUPLIKATY{recentRecipesContext}
 
 ## WYMAGANE POLA
@@ -219,7 +281,7 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 - `protein`: białko w gramach (double)
 - `carbohydrates`: węglowodany w gramach (double)
 - `fat`: tłuszcze w gramach (double)
-- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj""
+- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj"" (patrz sekcja KATEGORYZACJA POSIŁKU)
 - `servings`: liczba porcji (int, nullable)
 - `nutritionVariants`: WSZYSTKIE wiersze z tabeli
 

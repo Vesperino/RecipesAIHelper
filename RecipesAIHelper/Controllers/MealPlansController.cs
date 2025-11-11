@@ -326,6 +326,7 @@ public class MealPlansController : ControllerBase
             var addedCount = 0;
             var warnings = new List<string>();
             var missingDetails = new Dictionary<string, List<string>>(); // Day -> missing categories
+            var usedRecipeIds = new HashSet<int>(); // Track used recipes across all days
 
             // For each day in the plan
             foreach (var day in plan.Days)
@@ -336,7 +337,7 @@ public class MealPlansController : ControllerBase
                 if (request.UseCalorieTarget)
                 {
                     // Calorie-optimized generation
-                    var result = GenerateCalorieOptimizedDay(day, request, dayName, dayDate);
+                    var result = GenerateCalorieOptimizedDay(day, request, dayName, dayDate, usedRecipeIds);
                     addedCount += result.AddedCount;
                     if (result.Warning != null)
                     {
@@ -450,7 +451,7 @@ public class MealPlansController : ControllerBase
         return (addedCount, missingDetails.Count > 0 ? missingDetails : null);
     }
 
-    private (int AddedCount, string? Warning) GenerateCalorieOptimizedDay(MealPlanDay day, AutoGenerateRequest request, string dayName, string dayDate)
+    private (int AddedCount, string? Warning) GenerateCalorieOptimizedDay(MealPlanDay day, AutoGenerateRequest request, string dayName, string dayDate, HashSet<int> usedRecipeIds)
     {
         var addedCount = 0;
         var targetCalories = request.TargetCalories;
@@ -463,6 +464,7 @@ public class MealPlansController : ControllerBase
 
         var selectedRecipes = new List<(Recipe Recipe, MealType MealType)>();
         var totalCalories = 0;
+        var random = new Random();
 
         foreach (var categoryStr in request.Categories)
         {
@@ -476,27 +478,38 @@ public class MealPlansController : ControllerBase
             var minCal = Math.Max(0, caloriesPerCategory - margin);
             var maxCal = caloriesPerCategory + margin;
 
-            var candidates = _db.GetRecipesByCalorieRange(mealType, minCal, maxCal);
+            var candidates = _db.GetRecipesByCalorieRange(mealType, minCal, maxCal)
+                .Where(r => !usedRecipeIds.Contains(r.Id)) // Filter out already used recipes
+                .ToList();
 
             if (candidates.Count == 0)
             {
-                // Fallback: get any random recipe of this type
-                candidates = _db.GetRandomRecipesByMealType(mealType, 10);
+                // Fallback: get any random recipe of this type (excluding used ones)
+                candidates = _db.GetRandomRecipesByMealType(mealType, 20)
+                    .Where(r => !usedRecipeIds.Contains(r.Id))
+                    .ToList();
             }
 
             if (candidates.Count == 0)
             {
-                Console.WriteLine($"   ⚠️ Brak przepisów dla kategorii {categoryStr}");
+                Console.WriteLine($"   ⚠️ Brak nieużywanych przepisów dla kategorii {categoryStr}");
                 continue;
             }
 
-            // Select recipe closest to target
-            var bestRecipe = candidates.OrderBy(r => Math.Abs(r.Calories - caloriesPerCategory)).FirstOrDefault();
+            // Select recipe closest to target with randomization to ensure variety
+            // Take top 3 closest matches and randomly select one
+            var topMatches = candidates
+                .OrderBy(r => Math.Abs(r.Calories - caloriesPerCategory))
+                .Take(Math.Min(3, candidates.Count)) // Take up to 3, but not more than available
+                .ToList();
+
+            var bestRecipe = topMatches[random.Next(topMatches.Count)];
 
             if (bestRecipe != null)
             {
                 selectedRecipes.Add((bestRecipe, mealType));
                 totalCalories += bestRecipe.Calories;
+                usedRecipeIds.Add(bestRecipe.Id); // Mark recipe as used
                 Console.WriteLine($"      ✓ {categoryStr}: {bestRecipe.Name} ({bestRecipe.Calories} kcal)");
             }
         }
