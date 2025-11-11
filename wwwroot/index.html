@@ -1035,7 +1035,7 @@
                                                                         :class="index === 0 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-white'"
                                                                         class="flex-shrink-0"
                                                                         title="Przesuń w górę">
-                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
                                                                     </svg>
                                                                 </button>
@@ -1045,7 +1045,7 @@
                                                                         :class="index >= day.entries.length - 1 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-400 hover:text-white'"
                                                                         class="flex-shrink-0"
                                                                         title="Przesuń w dół">
-                                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                                                     </svg>
                                                                 </button>
@@ -1865,7 +1865,7 @@
                                     👥 Plan dla <span x-text="selectedPlan.persons.length"></span> <span x-text="selectedPlan.persons.length === 1 ? 'osoby' : 'osób'"></span>
                                 </p>
                                 <p class="text-xs text-gray-300">
-                                    Przepisy będą automatycznie dobrane dla osoby o najwyższej kaloryczności, a następnie przeskalowane przez AI dla pozostałych osób.
+                                    Przepisy będą automatycznie dobrane dla osoby o najwyższej kaloryczności. Użyj przycisku "Zeskaluj przepisy" aby przeskalować dla wszystkich osób.
                                 </p>
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     <template x-for="person in selectedPlan.persons" :key="person.id">

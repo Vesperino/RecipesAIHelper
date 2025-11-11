@@ -125,7 +125,7 @@ function appData() {
             useCalorieTarget: false,
             targetCalories: 1800,
             calorieMargin: 200,
-            skipScaling: false
+            skipScaling: true
         },
         shoppingList: null,
         isGeneratingShoppingList: false,

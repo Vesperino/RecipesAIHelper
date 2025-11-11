@@ -170,6 +170,9 @@ public class RecipeDbContext : IDisposable
         // Migrate existing data from Recipes table if ImagePath column doesn't exist
         MigrateRecipesTable();
 
+        // Migrate MealType enum values to new order
+        MigrateMealTypeValues();
+
         // Migrate AIProviders table - remove ApiKey column
         MigrateAIProvidersTable();
 
@@ -289,6 +292,97 @@ public class RecipeDbContext : IDisposable
             {
                 // Column might already exist, ignore error
             }
+        }
+    }
+
+    private void MigrateMealTypeValues()
+    {
+        var connection = GetConnection();
+
+        // Check if migration has already been performed
+        var checkCommand = connection.CreateCommand();
+        checkCommand.CommandText = "SELECT Value FROM Settings WHERE Key = 'MealTypeMigrated_v2' LIMIT 1";
+        var alreadyMigrated = false;
+        try
+        {
+            var result = checkCommand.ExecuteScalar();
+            alreadyMigrated = result != null && result.ToString() == "true";
+        }
+        catch
+        {
+            // Settings table might not exist yet, ignore
+        }
+
+        if (alreadyMigrated)
+        {
+            Console.WriteLine("✓ MealType migration already performed, skipping...");
+            return;
+        }
+
+        Console.WriteLine("🔄 Migrating MealType enum values to new order...");
+
+        try
+        {
+            // Old order: Sniadanie=0, Obiad=1, Kolacja=2, Deser=3, Napoj=4
+            // New order: Sniadanie=0, Deser=1, Obiad=2, Kolacja=3, Napoj=4
+            //
+            // Migration strategy: use temporary values to avoid conflicts
+            // 1. Obiad (1) → temp 100 → new Obiad (2)
+            // 2. Kolacja (2) → temp 101 → new Kolacja (3)
+            // 3. Deser (3) → temp 102 → new Deser (1)
+
+            // Step 1: Move old values to temporary values
+            var tempMigration = connection.CreateCommand();
+            tempMigration.CommandText = @"
+                -- Move to temporary values (Recipes table)
+                UPDATE Recipes SET MealType = 100 WHERE MealType = 1; -- Old Obiad
+                UPDATE Recipes SET MealType = 101 WHERE MealType = 2; -- Old Kolacja
+                UPDATE Recipes SET MealType = 102 WHERE MealType = 3; -- Old Deser
+
+                UPDATE Recipes SET AlternateMealType = 100 WHERE AlternateMealType = 1;
+                UPDATE Recipes SET AlternateMealType = 101 WHERE AlternateMealType = 2;
+                UPDATE Recipes SET AlternateMealType = 102 WHERE AlternateMealType = 3;
+
+                -- Move to temporary values (MealPlanEntries table)
+                UPDATE MealPlanEntries SET MealType = 100 WHERE MealType = 1;
+                UPDATE MealPlanEntries SET MealType = 101 WHERE MealType = 2;
+                UPDATE MealPlanEntries SET MealType = 102 WHERE MealType = 3;
+            ";
+            tempMigration.ExecuteNonQuery();
+
+            // Step 2: Move temporary values to new values
+            var finalMigration = connection.CreateCommand();
+            finalMigration.CommandText = @"
+                -- Move to new values (Recipes table)
+                UPDATE Recipes SET MealType = 2 WHERE MealType = 100; -- New Obiad
+                UPDATE Recipes SET MealType = 3 WHERE MealType = 101; -- New Kolacja
+                UPDATE Recipes SET MealType = 1 WHERE MealType = 102; -- New Deser
+
+                UPDATE Recipes SET AlternateMealType = 2 WHERE AlternateMealType = 100;
+                UPDATE Recipes SET AlternateMealType = 3 WHERE AlternateMealType = 101;
+                UPDATE Recipes SET AlternateMealType = 1 WHERE AlternateMealType = 102;
+
+                -- Move to new values (MealPlanEntries table)
+                UPDATE MealPlanEntries SET MealType = 2 WHERE MealType = 100;
+                UPDATE MealPlanEntries SET MealType = 3 WHERE MealType = 101;
+                UPDATE MealPlanEntries SET MealType = 1 WHERE MealType = 102;
+            ";
+            finalMigration.ExecuteNonQuery();
+
+            // Mark migration as completed
+            var markCommand = connection.CreateCommand();
+            markCommand.CommandText = @"
+                INSERT OR REPLACE INTO Settings (Key, Value, Type, Description, UpdatedAt)
+                VALUES ('MealTypeMigrated_v2', 'true', 'bool', 'MealType enum migration completed', datetime('now'))
+            ";
+            markCommand.ExecuteNonQuery();
+
+            Console.WriteLine("✅ MealType migration completed successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error during MealType migration: {ex.Message}");
+            throw;
         }
     }
 
