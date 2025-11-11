@@ -1720,8 +1720,8 @@ function appData() {
 
                 const result = await response.json();
 
-                // Show success message
-                this.showNotification(`Wygenerowano ${result.addedCount} przepisów!`, 'success');
+                // Show success message - use backend message which includes scaling info
+                this.showNotification(result.message || `Wygenerowano ${result.addedCount} przepisów!`, 'success');
 
                 // Show warnings if any
                 if (result.warnings && result.warnings.length > 0) {
