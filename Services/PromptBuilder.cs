@@ -101,94 +101,11 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 ""instructions"": ""1. W wysokiej misce mieszamy mąkę z przyprawami i ciepłą wodą.\n2. Posypujemy blat mąką i wałkujemy ciasto.\n3. Smażymy na patelni z dwóch stron.""
 ```
 
-## ⚠️ SOSY I REFERENCJE DO INNYCH STRON
+## DODATKI
 
-**KLUCZOWA INSTRUKCJA**: Jeśli przepis zawiera referencję do sosu lub innego przepisu na innej stronie (np. ""sos na stronie 26"", ""patrz str. 15""):
-
-1. **PRZESZUKAJ dostępne strony** w obecnych obrazach/PDF
-2. **Jeśli znajdziesz sos**:
-   - ✅ WYEKSTRAKTUJ składniki sosu i DODAJ je do listy `ingredients` głównego przepisu (z oznaczeniem ""Do sosu:"")
-   - ✅ WYEKSTRAKTUJ instrukcje sosu i DODAJ je do `instructions` głównego przepisu (jako osobny krok, np. ""Przygotowanie sosu: 1. ... 2. ..."")
-   - ✅ W opisie (`description`) wspomnij, że przepis zawiera sos
-
-3. **Jeśli NIE znajdziesz sosu** (strona poza zakresem chunka):
-   - ⚠️ DODAJ na POCZĄTKU instrukcji: ""⚠️ UWAGA: Do tego przepisu potrzebny jest [nazwa sosu] ze strony X. Sprawdź tę stronę w PDF.\n\n""
-   - ⚠️ W `ingredients` dodaj: ""[nazwa sosu] - patrz strona X""
-
-**Przykład POPRAWNEGO postępowania**:
-
-Przepis: ""Kurczak z sosem czosnkowym (sos na str. 26)""
-
-→ ZNAJDŹ stronę 26, wyekstraktuj sos i zapisz:
-
-```json
-{{
-  ""name"": ""Kurczak z sosem czosnkowym"",
-  ""description"": ""Kurczak pieczony z domowym sosem czosnkowym"",
-  ""ingredients"": [
-    ""500g piersi z kurczaka"",
-    ""2 łyżki oleju"",
-    ""Do sosu: 3 ząbki czosnku"",
-    ""Do sosu: 200ml śmietany"",
-    ""Do sosu: sól, pieprz""
-  ],
-  ""instructions"": ""1. Kurczaka kroimy i przyprawiamy.\n2. Smażymy na patelni 10 minut.\n\nPrzygotowanie sosu:\n3. Czosnek przeciskamy przez praskę.\n4. Mieszamy ze śmietaną.\n5. Podgrzewamy i doprawiamy.""
-}}
-```
-
-**NIGDY** nie zostawiaj samej informacji ""sos na stronie X"" bez ekstrakcji lub wyraźnego ostrzeżenia!
-
-## KATEGORYZACJA POSIŁKU (mealType)
-
-Określ typ posiłku na podstawie składników i kontekstu:
-
-- **Sniadanie**: Potrawy z węglowodanami złożonymi (owsianka, płatki, pieczywo pełnoziarniste) + białko + zdrowe tłuszcze. Cel: energia na cały dzień.
-  Przykłady: Jajecznica z pieczywem, omlet z warzywami, owsianka z orzechami, jogurt z granolą, tosty z awokado.
-
-- **Obiad**: Główny posiłek dnia - ciepłe dania wieloskładnikowe z mięsem/rybą/roślinami strączkowymi + duża porcja węglowodanów + warzywa.
-  Przykłady: Kotlet schabowy z ziemniakami, kurczak z ryżem, makaron z sosem, zupa krem z chlebem.
-
-- **Kolacja**: Lekkostrawne białko w małych porcjach + warzywa + niewielka ilość węglowodanów. Cel: łatwe trawienie przed snem.
-  Przykłady: Sałatka z tuńczykiem, jajko na twardo z warzywami, jogurt z owocami, serek wiejski z pomidorem, kanapka z chudym mięsem.
-
-- **Deser**: Słodkie wypieki, desery, lody, ciasta, przekąski bez składników obiadowych.
-
-- **Napoj**: Koktajle, smoothie, napoje, soki.
-
-### KLUCZOWE RÓŻNICE Śniadanie vs. Kolacja:
-
-| Cecha | Śniadanie | Kolacja |
-|-------|-----------|---------|
-| **Porcja białka** | Średnia/duża (np. 2-3 jajka) | Mała (np. 1 jajko, 100g serka) |
-| **Węglowodany** | Duża ilość (pieczywo, płatki) | Mała ilość lub brak |
-| **Forma białka** | Jajecznica, omlet, pasta jajeczna | Jajko na twardo w sałatce, serek jako dodatek |
-| **Temperatura** | Często ciepłe | Często zimne/lekkie |
-| **Komponowanie** | Substancjalne, energetyczne | Lekkostrawne, niewielkie porcje |
-
-**WAŻNE**: Wiele produktów białkowych (jajka, nabiał, drób, ryby) może być zarówno na śniadanie, jak i kolację. Decyduj na podstawie FORMY PODANIA i WIELKOŚCI PORCJI, nie samych składników!
-
-**Jeśli w PDF nie ma wyraźnej kategorii**, zdecyduj na podstawie powyższych zasad.
-
-### PODWÓJNA KATEGORIA (alternateMealType)
-
-⚠️ **NOWA FUNKCJA**: Jeśli przepis może być zarówno ŚNIADANIEM, jak i KOLACJĄ, podaj OBE kategorie!
-
-- **mealType**: Główna kategoria (najpopularniejsze użycie)
-- **alternateMealType**: Alternatywna kategoria (opcjonalne, jeśli przepis pasuje do 2 kategorii)
-
-**Przykłady przepisów z podwójną kategorią:**
-
-| Przepis | mealType | alternateMealType | Uzasadnienie |
-|---------|----------|-------------------|--------------|
-| Jogurt z owocami | ""Kolacja"" | ""Sniadanie"" | Może być lekką kolacją LUB częścią śniadania |
-| Jajka na twardo z warzywami | ""Kolacja"" | ""Sniadanie"" | Zależy od pory dnia i wielkości porcji |
-| Tost z awokado i jajkiem | ""Sniadanie"" | ""Kolacja"" | Substancjalne śniadanie LUB lekka kolacja |
-| Sałatka z kurczakiem | ""Kolacja"" | ""Obiad"" | Lekka kolacja LUB lekki obiad |
-| Omlet z warzywami | ""Sniadanie"" | ""Kolacja"" | Zależy od wielkości porcji |
-
-**ZASADA**: Jeśli przepis zawiera **tylko białko + warzywa** (bez dużej porcji węglowodanów), to prawdopodobnie może być **Śniadanie/Kolacja**.
-
-**Jeśli przepis pasuje TYLKO do jednej kategorii** (np. typowy obiad z mięsem, ziemniakami i sosem), zostaw `alternateMealType` jako `null`.
+Jeśli przepis zawiera dodatki (sosy, dipsy, garnitury, np. ""podawaj z sosem..."", ""opcjonalnie...""):
+- Dołącz je do składników
+- Uwzględnij w instrukcjach
 
 ## DUPLIKATY{alreadyProcessedContext}{recentRecipesContext}
 
@@ -202,8 +119,7 @@ Określ typ posiłku na podstawie składników i kontekstu:
 - `protein`: białko w gramach (double)
 - `carbohydrates`: węglowodany w gramach (double)
 - `fat`: tłuszcze w gramach (double)
-- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj"" (patrz sekcja KATEGORYZACJA POSIŁKU)
-- `alternateMealType`: Alternatywna kategoria posiłku (nullable, np. ""Sniadanie"" jeśli główna to ""Kolacja"")
+- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj""
 - `servings`: liczba porcji (int, nullable)
 - `nutritionVariants`: WSZYSTKIE wiersze z tabeli
 
@@ -223,7 +139,6 @@ Zwróć TYLKO JSON (bez markdown, bez ```json):
       ""carbohydrates"": 19.0,
       ""fat"": 0.0,
       ""mealType"": ""Sniadanie"",
-      ""alternateMealType"": ""Kolacja"",
       ""servings"": 4,
       ""nutritionVariants"": [
         {{""label"": ""całość"", ""calories"": 366, ""protein"": 10.0, ""carbohydrates"": 76.0, ""fat"": 2.0, ""notes"": null}},
@@ -298,94 +213,11 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 ""instructions"": ""1. Mieszamy składniki.\n2. Formujemy ciasto.\n3. Pieczemy.""
 ```
 
-## ⚠️ SOSY I REFERENCJE DO INNYCH STRON
+## DODATKI
 
-**KLUCZOWA INSTRUKCJA**: Jeśli przepis zawiera referencję do sosu lub innego przepisu na innej stronie (np. ""sos na stronie 26"", ""patrz str. 15""):
-
-1. **PRZESZUKAJ dostępne strony** w obecnym PDF
-2. **Jeśli znajdziesz sos**:
-   - ✅ WYEKSTRAKTUJ składniki sosu i DODAJ je do listy `ingredients` głównego przepisu (z oznaczeniem ""Do sosu:"")
-   - ✅ WYEKSTRAKTUJ instrukcje sosu i DODAJ je do `instructions` głównego przepisu (jako osobny krok, np. ""Przygotowanie sosu: 1. ... 2. ..."")
-   - ✅ W opisie (`description`) wspomnij, że przepis zawiera sos
-
-3. **Jeśli NIE znajdziesz sosu**:
-   - ⚠️ DODAJ na POCZĄTKU instrukcji: ""⚠️ UWAGA: Do tego przepisu potrzebny jest [nazwa sosu] ze strony X. Sprawdź tę stronę w PDF.\n\n""
-   - ⚠️ W `ingredients` dodaj: ""[nazwa sosu] - patrz strona X""
-
-**Przykład POPRAWNEGO postępowania**:
-
-Przepis: ""Kurczak z sosem czosnkowym (sos na str. 26)""
-
-→ ZNAJDŹ stronę 26, wyekstraktuj sos i zapisz:
-
-```json
-{{
-  ""name"": ""Kurczak z sosem czosnkowym"",
-  ""description"": ""Kurczak pieczony z domowym sosem czosnkowym"",
-  ""ingredients"": [
-    ""500g piersi z kurczaka"",
-    ""2 łyżki oleju"",
-    ""Do sosu: 3 ząbki czosnku"",
-    ""Do sosu: 200ml śmietany"",
-    ""Do sosu: sól, pieprz""
-  ],
-  ""instructions"": ""1. Kurczaka kroimy i przyprawiamy.\n2. Smażymy na patelni 10 minut.\n\nPrzygotowanie sosu:\n3. Czosnek przeciskamy przez praskę.\n4. Mieszamy ze śmietaną.\n5. Podgrzewamy i doprawiamy.""
-}}
-```
-
-**NIGDY** nie zostawiaj samej informacji ""sos na stronie X"" bez ekstrakcji lub wyraźnego ostrzeżenia!
-
-## KATEGORYZACJA POSIŁKU (mealType)
-
-Określ typ posiłku na podstawie składników i kontekstu:
-
-- **Sniadanie**: Potrawy z węglowodanami złożonymi (owsianka, płatki, pieczywo pełnoziarniste) + białko + zdrowe tłuszcze. Cel: energia na cały dzień.
-  Przykłady: Jajecznica z pieczywem, omlet z warzywami, owsianka z orzechami, jogurt z granolą, tosty z awokado.
-
-- **Obiad**: Główny posiłek dnia - ciepłe dania wieloskładnikowe z mięsem/rybą/roślinami strączkowymi + duża porcja węglowodanów + warzywa.
-  Przykłady: Kotlet schabowy z ziemniakami, kurczak z ryżem, makaron z sosem, zupa krem z chlebem.
-
-- **Kolacja**: Lekkostrawne białko w małych porcjach + warzywa + niewielka ilość węglowodanów. Cel: łatwe trawienie przed snem.
-  Przykłady: Sałatka z tuńczykiem, jajko na twardo z warzywami, jogurt z owocami, serek wiejski z pomidorem, kanapka z chudym mięsem.
-
-- **Deser**: Słodkie wypieki, desery, lody, ciasta, przekąski bez składników obiadowych.
-
-- **Napoj**: Koktajle, smoothie, napoje, soki.
-
-### KLUCZOWE RÓŻNICE Śniadanie vs. Kolacja:
-
-| Cecha | Śniadanie | Kolacja |
-|-------|-----------|---------|
-| **Porcja białka** | Średnia/duża (np. 2-3 jajka) | Mała (np. 1 jajko, 100g serka) |
-| **Węglowodany** | Duża ilość (pieczywo, płatki) | Mała ilość lub brak |
-| **Forma białka** | Jajecznica, omlet, pasta jajeczna | Jajko na twardo w sałatce, serek jako dodatek |
-| **Temperatura** | Często ciepłe | Często zimne/lekkie |
-| **Komponowanie** | Substancjalne, energetyczne | Lekkostrawne, niewielkie porcje |
-
-**WAŻNE**: Wiele produktów białkowych (jajka, nabiał, drób, ryby) może być zarówno na śniadanie, jak i kolację. Decyduj na podstawie FORMY PODANIA i WIELKOŚCI PORCJI, nie samych składników!
-
-**Jeśli w PDF nie ma wyraźnej kategorii**, zdecyduj na podstawie powyższych zasad.
-
-### PODWÓJNA KATEGORIA (alternateMealType)
-
-⚠️ **NOWA FUNKCJA**: Jeśli przepis może być zarówno ŚNIADANIEM, jak i KOLACJĄ, podaj OBE kategorie!
-
-- **mealType**: Główna kategoria (najpopularniejsze użycie)
-- **alternateMealType**: Alternatywna kategoria (opcjonalne, jeśli przepis pasuje do 2 kategorii)
-
-**Przykłady przepisów z podwójną kategorią:**
-
-| Przepis | mealType | alternateMealType | Uzasadnienie |
-|---------|----------|-------------------|--------------|
-| Jogurt z owocami | ""Kolacja"" | ""Sniadanie"" | Może być lekką kolacją LUB częścią śniadania |
-| Jajka na twardo z warzywami | ""Kolacja"" | ""Sniadanie"" | Zależy od pory dnia i wielkości porcji |
-| Tost z awokado i jajkiem | ""Sniadanie"" | ""Kolacja"" | Substancjalne śniadanie LUB lekka kolacja |
-| Sałatka z kurczakiem | ""Kolacja"" | ""Obiad"" | Lekka kolacja LUB lekki obiad |
-| Omlet z warzywami | ""Sniadanie"" | ""Kolacja"" | Zależy od wielkości porcji |
-
-**ZASADA**: Jeśli przepis zawiera **tylko białko + warzywa** (bez dużej porcji węglowodanów), to prawdopodobnie może być **Śniadanie/Kolacja**.
-
-**Jeśli przepis pasuje TYLKO do jednej kategorii** (np. typowy obiad z mięsem, ziemniakami i sosem), zostaw `alternateMealType` jako `null`.
+Jeśli przepis zawiera dodatki (sosy, dipsy, garnitury, np. ""podawaj z sosem..."", ""opcjonalnie...""):
+- Dołącz je do składników
+- Uwzględnij w instrukcjach
 
 ## DUPLIKATY{recentRecipesContext}
 
@@ -399,8 +231,7 @@ Określ typ posiłku na podstawie składników i kontekstu:
 - `protein`: białko w gramach (double)
 - `carbohydrates`: węglowodany w gramach (double)
 - `fat`: tłuszcze w gramach (double)
-- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj"" (patrz sekcja KATEGORYZACJA POSIŁKU)
-- `alternateMealType`: Alternatywna kategoria posiłku (nullable, np. ""Sniadanie"" jeśli główna to ""Kolacja"")
+- `mealType`: ""Sniadanie"", ""Obiad"", ""Kolacja"", ""Deser"", lub ""Napoj""
 - `servings`: liczba porcji (int, nullable)
 - `nutritionVariants`: WSZYSTKIE wiersze z tabeli
 
