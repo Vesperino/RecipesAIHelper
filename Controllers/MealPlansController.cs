@@ -304,7 +304,7 @@ public class MealPlansController : ControllerBase
     /// Body: { "categories": ["Sniadanie", "Obiad", "Kolacja"], "perDay": 1 }
     /// </summary>
     [HttpPost("{planId}/auto-generate")]
-    public ActionResult AutoGenerate(int planId, [FromBody] AutoGenerateRequest request)
+    public async Task<ActionResult> AutoGenerate(int planId, [FromBody] AutoGenerateRequest request)
     {
         try
         {
@@ -377,14 +377,173 @@ public class MealPlansController : ControllerBase
                 }
             }
 
+            // Auto-scale recipes if plan has persons
+            var persons = _db.GetMealPlanPersons(planId);
+            var scaledCount = 0;
+            var scalingErrors = new List<string>();
+
+            if (persons.Count > 0 && addedCount > 0)
+            {
+                Console.WriteLine($"🔧 Wykryto {persons.Count} osób w planie - automatyczne skalowanie przepisów...");
+
+                // Get active AI provider
+                var activeProvider = _aiFactory.GetActiveProvider();
+                if (activeProvider != null)
+                {
+                    // Get API key
+                    string? apiKey = null;
+                    var providerNameLower = activeProvider.Name.ToLowerInvariant();
+                    if (providerNameLower == "openai")
+                    {
+                        apiKey = _db.GetSetting("OpenAI_ApiKey");
+                    }
+                    else if (providerNameLower == "gemini" || providerNameLower == "google")
+                    {
+                        apiKey = _db.GetSetting("Gemini_ApiKey");
+                    }
+
+                    if (!string.IsNullOrEmpty(apiKey))
+                    {
+                        // Reload plan to get fresh entries
+                        var freshPlan = _db.GetMealPlan(planId);
+                        if (freshPlan?.Days != null)
+                        {
+                            // Collect all entries
+                            var allEntries = new List<MealPlanEntry>();
+                            foreach (var day in freshPlan.Days)
+                            {
+                                if (day.Entries != null)
+                                {
+                                    allEntries.AddRange(day.Entries);
+                                }
+                            }
+
+                            // Scale each entry
+                            var avgCalories = persons.Average(p => p.TargetCalories);
+
+                            foreach (var entry in allEntries)
+                            {
+                                if (entry.Recipe == null) continue;
+
+                                try
+                                {
+                                    var isDessert = entry.MealType == MealType.Deser;
+
+                                    if (isDessert)
+                                    {
+                                        var dessertService = new DessertPlanningService(apiKey, activeProvider.Model);
+                                        var dessertPlan = await dessertService.PlanDessertAsync(entry.Recipe, persons);
+
+                                        foreach (var person in persons)
+                                        {
+                                            var scaledRecipe = new MealPlanRecipe
+                                            {
+                                                MealPlanEntryId = entry.Id,
+                                                PersonId = person.Id,
+                                                BaseRecipeId = entry.Recipe.Id,
+                                                ScalingFactor = 1.0,
+                                                ScaledIngredients = new List<string> { entry.Recipe.Ingredients },
+                                                ScaledCalories = dessertPlan.PortionCalories,
+                                                ScaledProtein = entry.Recipe.Protein,
+                                                ScaledCarbs = entry.Recipe.Carbohydrates,
+                                                ScaledFat = entry.Recipe.Fat,
+                                                CreatedAt = DateTime.Now
+                                            };
+                                            _db.CreateMealPlanRecipe(scaledRecipe);
+                                        }
+
+                                        Console.WriteLine($"   🍰 {entry.Recipe.Name}: przeskalowano jako deser");
+                                        scaledCount++;
+                                    }
+                                    else
+                                    {
+                                        var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
+
+                                        foreach (var person in persons)
+                                        {
+                                            var scalingFactor = person.TargetCalories / avgCalories;
+                                            var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
+                                                entry.Recipe,
+                                                scalingFactor,
+                                                entry.MealType
+                                            );
+
+                                            if (scaledIngredients.Count == 0)
+                                            {
+                                                scaledIngredients = new List<string> { entry.Recipe.Ingredients };
+                                            }
+
+                                            var scaledCalories = (int)Math.Round(entry.Recipe.Calories * scalingFactor);
+
+                                            var scaledRecipe = new MealPlanRecipe
+                                            {
+                                                MealPlanEntryId = entry.Id,
+                                                PersonId = person.Id,
+                                                BaseRecipeId = entry.Recipe.Id,
+                                                ScalingFactor = scalingFactor,
+                                                ScaledIngredients = scaledIngredients,
+                                                ScaledCalories = scaledCalories,
+                                                ScaledProtein = entry.Recipe.Protein * scalingFactor,
+                                                ScaledCarbs = entry.Recipe.Carbohydrates * scalingFactor,
+                                                ScaledFat = entry.Recipe.Fat * scalingFactor,
+                                                CreatedAt = DateTime.Now
+                                            };
+                                            _db.CreateMealPlanRecipe(scaledRecipe);
+                                        }
+
+                                        Console.WriteLine($"   ✓ {entry.Recipe.Name}: przeskalowano dla {persons.Count} osób");
+                                        scaledCount++;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    var errorMsg = $"Błąd skalowania '{entry.Recipe.Name}': {ex.Message}";
+                                    scalingErrors.Add(errorMsg);
+                                    Console.WriteLine($"   ⚠️ {errorMsg}");
+                                }
+                            }
+
+                            if (scaledCount > 0)
+                            {
+                                Console.WriteLine($"✅ Automatyczne skalowanie zakończone: {scaledCount}/{allEntries.Count} przepisów");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        scalingErrors.Add("Brak klucza API - pomiń automatyczne skalowanie");
+                        Console.WriteLine("⚠️ Brak klucza API - pomijam automatyczne skalowanie");
+                    }
+                }
+                else
+                {
+                    scalingErrors.Add("Brak aktywnego providera AI - pomiń automatyczne skalowanie");
+                    Console.WriteLine("⚠️ Brak aktywnego providera AI - pomijam automatyczne skalowanie");
+                }
+            }
+
             // Return updated plan
             var updatedPlan = _db.GetMealPlan(planId);
+
+            var finalMessage = warnings.Count > 0
+                ? $"Dodano {addedCount} przepisów, ale wystąpiły ostrzeżenia"
+                : $"Auto-generowano {addedCount} przepisów";
+
+            if (scaledCount > 0)
+            {
+                finalMessage += $" i automatycznie przeskalowano {scaledCount} dla {persons.Count} osób";
+            }
+
+            if (scalingErrors.Count > 0)
+            {
+                warnings.AddRange(scalingErrors);
+            }
+
             return Ok(new
             {
-                message = warnings.Count > 0
-                    ? $"Dodano {addedCount} przepisów, ale wystąpiły ostrzeżenia"
-                    : $"Auto-generowano {addedCount} przepisów",
+                message = finalMessage,
                 addedCount,
+                scaledCount,
                 warnings = warnings.Count > 0 ? warnings : null,
                 plan = updatedPlan
             });
