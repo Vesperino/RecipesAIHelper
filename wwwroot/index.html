@@ -1290,12 +1290,22 @@
                         <button @click="exportToTodoist()"
                                 :disabled="isExportingToTodoist || !todoistSettings.isConfigured"
                                 :class="(isExportingToTodoist || !todoistSettings.isConfigured) ? 'opacity-50 cursor-not-allowed' : 'hover:from-purple-700 hover:to-purple-800'"
+                                :title="!todoistSettings.isConfigured ? 'Skonfiguruj klucz API Todoist w Ustawieniach' : 'Eksportuj listę zakupów do Todoist'"
                                 class="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2">
                             <svg class="w-5 h-5" :class="isExportingToTodoist ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
                             </svg>
-                            <span x-text="isExportingToTodoist ? 'Eksportowanie...' : 'Export do Todoist'"></span>
+                            <span x-text="isExportingToTodoist ? '⏳ Eksportowanie...' : '📋 Export do Todoist'">📋 Export do Todoist</span>
                         </button>
+                    </div>
+
+                    <!-- Todoist not configured info -->
+                    <div x-show="!todoistSettings.isConfigured" class="mt-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-3">
+                        <p class="text-sm text-yellow-300">
+                            ⚠️ <strong>Todoist nie jest skonfigurowany.</strong> Aby eksportować listę zakupów, przejdź do zakładki
+                            <a @click="currentTab = 'settings'; showShoppingListModal = false" class="text-blue-400 hover:underline cursor-pointer font-medium">⚙️ Ustawienia</a>
+                            i skonfiguruj klucz API Todoist.
+                        </p>
                     </div>
                 </div>
 
