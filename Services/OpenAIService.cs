@@ -72,7 +72,8 @@ public class OpenAIService : IAIService
     /// </summary>
     public async Task<List<RecipeExtractionResult>> ExtractRecipesFromPdf(
         PdfFileChunk pdfChunk,
-        List<Recipe>? recentRecipes = null)
+        List<Recipe>? recentRecipes = null,
+        IProgress<StreamingProgress>? progress = null)
     {
         return await _retryPolicy.ExecuteAsync(async () =>
         {
@@ -97,10 +98,47 @@ public class OpenAIService : IAIService
                 Console.WriteLine($"📤 Wysyłanie PDF do OpenAI: {pdfChunk.FileName} ({pdfChunk.FileSize / 1024.0 / 1024.0:F2} MB)...");
 
                 var startTime = DateTime.Now;
-                var completion = await _chatClient.CompleteChatAsync(messages);
-                var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                string responseContent;
 
-                var responseContent = completion.Value.Content[0].Text.Trim();
+                // Use streaming if progress callback is provided
+                if (progress != null)
+                {
+                    Console.WriteLine($"📡 Używam streaming API dla lepszej obsługi dużych plików...");
+                    var responseBuilder = new System.Text.StringBuilder();
+
+                    await foreach (var update in _chatClient.CompleteChatStreamingAsync(messages))
+                    {
+                        foreach (var contentPart in update.ContentUpdate)
+                        {
+                            responseBuilder.Append(contentPart.Text);
+                        }
+
+                        var currentElapsed = (DateTime.Now - startTime).TotalSeconds;
+
+                        // Report progress
+                        progress.Report(new StreamingProgress
+                        {
+                            BytesReceived = responseBuilder.Length,
+                            Message = $"Otrzymano {responseBuilder.Length / 1024.0:F1} KB...",
+                            ElapsedSeconds = currentElapsed
+                        });
+
+                        // Show progress every ~10KB
+                        if (responseBuilder.Length % 10000 < 100)
+                        {
+                            Console.WriteLine($"   📊 Odebrano {responseBuilder.Length / 1024.0:F1} KB... ({currentElapsed:F1}s)");
+                        }
+                    }
+
+                    responseContent = responseBuilder.ToString().Trim();
+                }
+                else
+                {
+                    var completion = await _chatClient.CompleteChatAsync(messages);
+                    responseContent = completion.Value.Content[0].Text.Trim();
+                }
+
+                var elapsed = (DateTime.Now - startTime).TotalSeconds;
                 Console.WriteLine($"📥 Otrzymano odpowiedź ({responseContent.Length} znaków, {elapsed:F1}s)");
 
                 // Parse JSON response
@@ -134,7 +172,8 @@ public class OpenAIService : IAIService
     public async Task<List<RecipeExtractionResult>> ExtractRecipesFromImages(
         PdfImageChunk imageChunk,
         List<Recipe>? recentRecipes = null,
-        List<string>? alreadyProcessedInPdf = null)
+        List<string>? alreadyProcessedInPdf = null,
+        IProgress<StreamingProgress>? progress = null)
     {
         return await _retryPolicy.ExecuteAsync(async () =>
         {
@@ -182,14 +221,50 @@ public class OpenAIService : IAIService
 
                 Console.WriteLine($"   ⏱️  Timeout: 5 minut");
                 var startTime = DateTime.Now;
+                string responseContent;
 
                 // Create cancellation token with 5 minute timeout
                 using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
 
-                var completion = await _chatClient.CompleteChatAsync(messages, cancellationToken: cts.Token);
-                var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                // Use streaming if progress callback is provided
+                if (progress != null)
+                {
+                    Console.WriteLine($"📡 Używam streaming API dla lepszej obsługi dużych plików...");
+                    var responseBuilder = new System.Text.StringBuilder();
 
-                var responseContent = completion.Value.Content[0].Text.Trim();
+                    await foreach (var update in _chatClient.CompleteChatStreamingAsync(messages, cancellationToken: cts.Token))
+                    {
+                        foreach (var contentPart in update.ContentUpdate)
+                        {
+                            responseBuilder.Append(contentPart.Text);
+                        }
+
+                        var currentElapsed = (DateTime.Now - startTime).TotalSeconds;
+
+                        // Report progress
+                        progress.Report(new StreamingProgress
+                        {
+                            BytesReceived = responseBuilder.Length,
+                            Message = $"Otrzymano {responseBuilder.Length / 1024.0:F1} KB...",
+                            ElapsedSeconds = currentElapsed
+                        });
+
+                        // Show progress every ~10KB
+                        if (responseBuilder.Length % 10000 < 100)
+                        {
+                            Console.WriteLine($"   📊 Odebrano {responseBuilder.Length / 1024.0:F1} KB... ({currentElapsed:F1}s)");
+                        }
+                    }
+
+                    responseContent = responseBuilder.ToString().Trim();
+                }
+                else
+                {
+                    var completion = await _chatClient.CompleteChatAsync(messages, cancellationToken: cts.Token);
+                    responseContent = completion.Value.Content[0].Text.Trim();
+                }
+
+                var elapsed = (DateTime.Now - startTime).TotalSeconds;
                 Console.WriteLine($"📥 Otrzymano odpowiedź ({responseContent.Length} znaków, {elapsed:F1}s)");
 
                 // Parse JSON response

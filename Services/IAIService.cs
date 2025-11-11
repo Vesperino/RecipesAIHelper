@@ -34,7 +34,8 @@ public interface IAIService
     /// </summary>
     Task<List<RecipeExtractionResult>> ExtractRecipesFromPdf(
         PdfFileChunk pdfChunk,
-        List<Recipe>? recentRecipes = null);
+        List<Recipe>? recentRecipes = null,
+        IProgress<StreamingProgress>? progress = null);
 
     /// <summary>
     /// Extracts recipes from PDF page images using Vision API
@@ -42,5 +43,6 @@ public interface IAIService
     Task<List<RecipeExtractionResult>> ExtractRecipesFromImages(
         PdfImageChunk imageChunk,
         List<Recipe>? recentRecipes = null,
-        List<string>? alreadyProcessedInPdf = null);
+        List<string>? alreadyProcessedInPdf = null,
+        IProgress<StreamingProgress>? progress = null);
 }

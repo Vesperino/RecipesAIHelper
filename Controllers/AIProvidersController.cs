@@ -28,7 +28,6 @@ public class AIProvidersController : ControllerBase
             {
                 Id = p.Id,
                 Name = p.Name,
-                ApiKey = MaskApiKey(p.ApiKey),
                 Model = p.Model,
                 IsActive = p.IsActive,
                 Priority = p.Priority,
@@ -65,7 +64,6 @@ public class AIProvidersController : ControllerBase
             {
                 Id = provider.Id,
                 Name = provider.Name,
-                ApiKey = MaskApiKey(provider.ApiKey),
                 Model = provider.Model,
                 IsActive = provider.IsActive,
                 Priority = provider.Priority,
@@ -102,7 +100,6 @@ public class AIProvidersController : ControllerBase
             {
                 Id = provider.Id,
                 Name = provider.Name,
-                ApiKey = MaskApiKey(provider.ApiKey),
                 Model = provider.Model,
                 IsActive = provider.IsActive,
                 Priority = provider.Priority,
@@ -133,11 +130,6 @@ public class AIProvidersController : ControllerBase
                 return BadRequest(new { error = "Provider name is required" });
             }
 
-            if (string.IsNullOrWhiteSpace(createDto.ApiKey))
-            {
-                return BadRequest(new { error = "API key is required" });
-            }
-
             if (string.IsNullOrWhiteSpace(createDto.Model))
             {
                 return BadRequest(new { error = "Model is required" });
@@ -146,7 +138,6 @@ public class AIProvidersController : ControllerBase
             var provider = new AIProvider
             {
                 Name = createDto.Name,
-                ApiKey = createDto.ApiKey,
                 Model = createDto.Model,
                 IsActive = createDto.IsActive,
                 Priority = createDto.Priority,
@@ -169,7 +160,6 @@ public class AIProvidersController : ControllerBase
             {
                 Id = provider.Id,
                 Name = provider.Name,
-                ApiKey = MaskApiKey(provider.ApiKey),
                 Model = provider.Model,
                 IsActive = provider.IsActive,
                 Priority = provider.Priority,
@@ -208,11 +198,6 @@ public class AIProvidersController : ControllerBase
                 provider.Name = updateDto.Name;
             }
 
-            if (!string.IsNullOrWhiteSpace(updateDto.ApiKey) && updateDto.ApiKey != "***")
-            {
-                provider.ApiKey = updateDto.ApiKey;
-            }
-
             if (!string.IsNullOrWhiteSpace(updateDto.Model))
             {
                 provider.Model = updateDto.Model;
@@ -248,7 +233,6 @@ public class AIProvidersController : ControllerBase
             {
                 Id = provider.Id,
                 Name = provider.Name,
-                ApiKey = MaskApiKey(provider.ApiKey),
                 Model = provider.Model,
                 IsActive = provider.IsActive,
                 Priority = provider.Priority,
@@ -320,14 +304,6 @@ public class AIProvidersController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
-
-    private string MaskApiKey(string apiKey)
-    {
-        if (string.IsNullOrEmpty(apiKey) || apiKey.Length < 8)
-            return "***";
-
-        return apiKey.Substring(0, 4) + "***" + apiKey.Substring(apiKey.Length - 4);
-    }
 }
 
 // DTOs
@@ -335,7 +311,6 @@ public class AIProviderDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public string ApiKey { get; set; } = string.Empty; // Masked
     public string Model { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public int Priority { get; set; }
@@ -348,7 +323,6 @@ public class AIProviderDto
 public class AIProviderCreateDto
 {
     public string Name { get; set; } = string.Empty;
-    public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public int Priority { get; set; }
@@ -359,7 +333,6 @@ public class AIProviderCreateDto
 public class AIProviderUpdateDto
 {
     public string? Name { get; set; }
-    public string? ApiKey { get; set; }
     public string? Model { get; set; }
     public bool? IsActive { get; set; }
     public int? Priority { get; set; }

@@ -22,6 +22,9 @@ public class GeminiService : IAIService
         _genAi = new GoogleAI(apiKey);
         _model = _genAi.GenerativeModel(model: modelName);
 
+        // Set timeout to 10 minutes (600s) to handle large PDFs
+        _model.Timeout = TimeSpan.FromMinutes(10);
+
         // Polly retry policy: 3 attempts with 2s, 4s, 8s delays
         _retryPolicy = Policy
             .Handle<Exception>(ex => ex is not OperationCanceledException)
@@ -48,6 +51,7 @@ public class GeminiService : IAIService
         Console.WriteLine($"✅ Gemini Service zainicjalizowany z modelem: {_modelName}");
         Console.WriteLine($"   Max pages per chunk: 100 stron (1M token context)");
         Console.WriteLine($"   Direct PDF support: enabled (inline_data with base64)");
+        Console.WriteLine($"   Timeout: 10 minut (600s)");
     }
 
     // ==================== IAIService Implementation ====================
@@ -67,7 +71,8 @@ public class GeminiService : IAIService
     /// </summary>
     public async Task<List<RecipeExtractionResult>> ExtractRecipesFromPdf(
         PdfFileChunk pdfChunk,
-        List<Recipe>? recentRecipes = null)
+        List<Recipe>? recentRecipes = null,
+        IProgress<StreamingProgress>? progress = null)
     {
         return await _retryPolicy.ExecuteAsync(async () =>
         {
@@ -108,10 +113,34 @@ public class GeminiService : IAIService
                 };
 
                 var startTime = DateTime.Now;
-                var response = await _model.GenerateContent(request);
-                var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                Console.WriteLine($"📡 Używam streaming API dla lepszej obsługi dużych plików...");
 
-                var responseContent = response?.Text?.Trim() ?? "";
+                // Use streaming API to keep connection alive during processing
+                var responseBuilder = new System.Text.StringBuilder();
+                await foreach (var chunk in _model.GenerateContentStream(request))
+                {
+                    var chunkText = chunk?.Text ?? "";
+                    responseBuilder.Append(chunkText);
+
+                    var currentElapsed = (DateTime.Now - startTime).TotalSeconds;
+
+                    // Report progress
+                    progress?.Report(new StreamingProgress
+                    {
+                        BytesReceived = responseBuilder.Length,
+                        Message = $"Otrzymano {responseBuilder.Length / 1024.0:F1} KB...",
+                        ElapsedSeconds = currentElapsed
+                    });
+
+                    // Show progress every ~10KB
+                    if (responseBuilder.Length % 10000 < chunkText.Length)
+                    {
+                        Console.WriteLine($"   📊 Odebrano {responseBuilder.Length / 1024.0:F1} KB... ({currentElapsed:F1}s)");
+                    }
+                }
+
+                var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                var responseContent = responseBuilder.ToString().Trim();
                 Console.WriteLine($"📥 Otrzymano odpowiedź ({responseContent.Length} znaków, {elapsed:F1}s)");
 
                 // Debug: Save response to file
@@ -166,7 +195,8 @@ public class GeminiService : IAIService
     public async Task<List<RecipeExtractionResult>> ExtractRecipesFromImages(
         PdfImageChunk imageChunk,
         List<Recipe>? recentRecipes = null,
-        List<string>? alreadyProcessedInPdf = null)
+        List<string>? alreadyProcessedInPdf = null,
+        IProgress<StreamingProgress>? progress = null)
     {
         return await _retryPolicy.ExecuteAsync(async () =>
         {
@@ -224,10 +254,34 @@ public class GeminiService : IAIService
                 Console.WriteLine($"✅ Przygotowano request z {parts.Count} częściami (1 prompt + {imageChunk.Pages.Count} obrazów)");
 
                 var startTime = DateTime.Now;
-                var response = await _model.GenerateContent(request);
-                var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                Console.WriteLine($"📡 Używam streaming API dla lepszej obsługi dużych plików...");
 
-                var responseContent = response?.Text?.Trim() ?? "";
+                // Use streaming API to keep connection alive during processing
+                var responseBuilder = new System.Text.StringBuilder();
+                await foreach (var chunk in _model.GenerateContentStream(request))
+                {
+                    var chunkText = chunk?.Text ?? "";
+                    responseBuilder.Append(chunkText);
+
+                    var currentElapsed = (DateTime.Now - startTime).TotalSeconds;
+
+                    // Report progress
+                    progress?.Report(new StreamingProgress
+                    {
+                        BytesReceived = responseBuilder.Length,
+                        Message = $"Otrzymano {responseBuilder.Length / 1024.0:F1} KB...",
+                        ElapsedSeconds = currentElapsed
+                    });
+
+                    // Show progress every ~10KB
+                    if (responseBuilder.Length % 10000 < chunkText.Length)
+                    {
+                        Console.WriteLine($"   📊 Odebrano {responseBuilder.Length / 1024.0:F1} KB... ({currentElapsed:F1}s)");
+                    }
+                }
+
+                var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                var responseContent = responseBuilder.ToString().Trim();
                 Console.WriteLine($"📥 Otrzymano odpowiedź ({responseContent.Length} znaków, {elapsed:F1}s)");
 
                 // Debug: Save response to file

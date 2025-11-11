@@ -41,10 +41,30 @@ public class AIServiceFactory
 
         try
         {
-            return provider.Name.ToLowerInvariant() switch
+            // Get API key from Settings based on provider name
+            string? apiKey = null;
+            var providerNameLower = provider.Name.ToLowerInvariant();
+
+            if (providerNameLower == "openai")
             {
-                "openai" => new OpenAIService(provider.ApiKey, provider.Model),
-                "gemini" or "google" => new GeminiService(provider.ApiKey, provider.Model),
+                apiKey = _db.GetSetting("OpenAI_ApiKey");
+            }
+            else if (providerNameLower == "gemini" || providerNameLower == "google")
+            {
+                apiKey = _db.GetSetting("Gemini_ApiKey");
+            }
+
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                Console.WriteLine($"❌ Brak klucza API dla providera {provider.Name} w Settings");
+                Console.WriteLine($"   Skonfiguruj klucz API w zakładce Ustawienia");
+                return null;
+            }
+
+            return providerNameLower switch
+            {
+                "openai" => new OpenAIService(apiKey, provider.Model),
+                "gemini" or "google" => new GeminiService(apiKey, provider.Model),
                 _ => throw new NotSupportedException($"Nieobsługiwany provider: {provider.Name}")
             };
         }

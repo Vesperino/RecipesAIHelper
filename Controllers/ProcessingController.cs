@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using RecipesAIHelper.Data;
 using RecipesAIHelper.Models;
 using RecipesAIHelper.Services;
+using System.Security.Cryptography;
 
 namespace RecipesAIHelper.Controllers;
 
@@ -42,6 +43,21 @@ public class ProcessingController : ControllerBase
 
         // Start processing in background
         Task.Run(async () => await ProcessPdfsAsync(request.Files));
+
+        return Ok(new { message = "Processing started", status = _status });
+    }
+
+    [HttpPost("process-uploaded")]
+    public ActionResult StartProcessingUploaded([FromBody] ProcessUploadedRequest request)
+    {
+        if (_isProcessing)
+            return BadRequest(new { error = "Processing already in progress" });
+
+        _isProcessing = true;
+        _status = new ProcessingStatus { IsRunning = true, Message = "Starting processing uploaded files..." };
+
+        // Start processing in background with full file paths
+        Task.Run(async () => await ProcessUploadedFilesAsync(request.FilePaths));
 
         return Ok(new { message = "Processing started", status = _status });
     }
@@ -115,6 +131,9 @@ public class ProcessingController : ControllerBase
                 Console.WriteLine($"📋 Przetwarzanie [{_status.CurrentFile}/{_status.TotalFiles}]: {Path.GetFileName(pdfFile)}");
                 Console.WriteLine("================================================================================");
 
+                // Track number of recipes extracted from this file
+                int recipesExtractedFromFile = 0;
+
                 try
                 {
                     // Track recipes already processed in THIS PDF to avoid duplicates within chunks
@@ -122,6 +141,14 @@ public class ProcessingController : ControllerBase
                     var recentRecipes = checkDuplicates ? _db.GetRecentRecipes(recentRecipesContext) : null;
 
                     List<RecipeExtractionResult> allRecipes = new List<RecipeExtractionResult>();
+
+                    // Create progress callback to update status
+                    var progress = new Progress<StreamingProgress>(p =>
+                    {
+                        _status.StreamingBytesReceived = p.BytesReceived;
+                        _status.StreamingMessage = p.Message;
+                        _status.StreamingElapsedSeconds = p.ElapsedSeconds;
+                    });
 
                     // Check if provider supports direct PDF processing
                     if (activeProvider.SupportsDirectPDF)
@@ -139,11 +166,16 @@ public class ProcessingController : ControllerBase
                         }
 
                         var startTime = DateTime.Now;
-                        var recipes = await aiService.ExtractRecipesFromPdf(pdfChunk, recentRecipes);
+                        var recipes = await aiService.ExtractRecipesFromPdf(pdfChunk, recentRecipes, progress);
                         var processingTime = (DateTime.Now - startTime).TotalSeconds;
 
                         Console.WriteLine($"✅ Otrzymano {recipes.Count} przepisów (czas: {processingTime:F1}s)");
                         allRecipes.AddRange(recipes);
+
+                        // Reset streaming progress after completion
+                        _status.StreamingBytesReceived = 0;
+                        _status.StreamingMessage = "";
+                        _status.StreamingElapsedSeconds = 0;
                     }
                     else
                     {
@@ -177,11 +209,16 @@ public class ProcessingController : ControllerBase
 
                             Console.WriteLine($"  ⏳ Wysyłanie obrazów do {activeProvider.Name} ({activeProvider.Model})...");
                             var startTime = DateTime.Now;
-                            var recipes = await aiService.ExtractRecipesFromImages(imageChunk, recentRecipes, processedInThisPdf);
+                            var recipes = await aiService.ExtractRecipesFromImages(imageChunk, recentRecipes, processedInThisPdf, progress);
                             var processingTime = (DateTime.Now - startTime).TotalSeconds;
 
                             Console.WriteLine($"  ✅ Otrzymano {recipes.Count} przepisów (czas: {processingTime:F1}s)");
                             allRecipes.AddRange(recipes);
+
+                            // Reset streaming progress after chunk completion
+                            _status.StreamingBytesReceived = 0;
+                            _status.StreamingMessage = "";
+                            _status.StreamingElapsedSeconds = 0;
 
                             if (i < imageChunks.Count - 1)
                             {
@@ -245,9 +282,33 @@ public class ProcessingController : ControllerBase
                         _db.InsertRecipe(recipe);
                         Console.WriteLine($"    ✅ Zapisano: {recipe.Name} ({recipe.MealType}) - {recipe.Calories} kcal");
                         _status.RecipesSaved++;
+                        recipesExtractedFromFile++;
 
                         // Add to processed list to prevent duplicates in subsequent chunks
                         processedInThisPdf.Add(recipe.Name);
+                    }
+
+                    // Save file checksum after successful processing
+                    try
+                    {
+                        var fileChecksum = CalculateFileChecksum(pdfFile);
+                        var fileInfo = new FileInfo(pdfFile);
+
+                        var processedFile = new ProcessedFile
+                        {
+                            FileName = Path.GetFileName(pdfFile),
+                            FileChecksum = fileChecksum,
+                            FileSizeBytes = fileInfo.Length,
+                            ProcessedAt = DateTime.Now,
+                            RecipesExtracted = recipesExtractedFromFile
+                        };
+
+                        _db.InsertProcessedFile(processedFile);
+                        Console.WriteLine($"    💾 Zapisano checksum pliku: {fileChecksum}");
+                    }
+                    catch (Exception checksumEx)
+                    {
+                        Console.WriteLine($"    ⚠️  Nie udało się zapisać checksumy: {checksumEx.Message}");
                     }
                 }
                 catch (Exception ex)
@@ -290,11 +351,260 @@ public class ProcessingController : ControllerBase
             _isProcessing = false;
         }
     }
+
+    private async Task ProcessUploadedFilesAsync(List<string> filePaths)
+    {
+        try
+        {
+            // Get active AI provider from database
+            var activeProvider = _aiServiceFactory.GetActiveProvider();
+            if (activeProvider == null)
+            {
+                _status.IsRunning = false;
+                _status.Message = "Brak aktywnego providera AI. Skonfiguruj providera w zakładce 'Ustawienia'.";
+                _status.Errors++;
+                Console.WriteLine("❌ BŁĄD: Brak aktywnego providera AI w bazie danych");
+                _isProcessing = false;
+                return;
+            }
+
+            // Create AI service instance
+            var aiService = _aiServiceFactory.CreateService(activeProvider);
+            if (aiService == null)
+            {
+                _status.IsRunning = false;
+                _status.Message = "Nie udało się utworzyć serwisu AI";
+                _status.Errors++;
+                Console.WriteLine($"❌ BŁĄD: Nie udało się utworzyć serwisu dla providera {activeProvider.Name}");
+                _isProcessing = false;
+                return;
+            }
+
+            var delayMs = int.TryParse(_configuration["Settings:DelayBetweenChunksMs"], out var delay) ? delay : 3000;
+            var checkDuplicates = bool.TryParse(_configuration["Settings:CheckDuplicates"], out var checkDup) ? checkDup : true;
+            var recentRecipesContext = int.TryParse(_configuration["Settings:RecentRecipesContext"], out var recentCtx) ? recentCtx : 10;
+
+            Console.WriteLine("\n================================================================================");
+            Console.WriteLine("ROZPOCZĘCIE PRZETWARZANIA UPLOADOWANYCH PLIKÓW");
+            Console.WriteLine("================================================================================");
+            Console.WriteLine($"AI Provider: {activeProvider.Name}");
+            Console.WriteLine($"Model: {activeProvider.Model}");
+            Console.WriteLine($"Max stron/chunk: {activeProvider.MaxPagesPerChunk}");
+            Console.WriteLine("================================================================================");
+            Console.WriteLine($"📄 Znaleziono {filePaths.Count} plików do przetworzenia\n");
+
+            _status.TotalFiles = filePaths.Count;
+            _status.CurrentFile = 0;
+
+            // Use the same processing logic as ProcessPdfsAsync
+            // This is a simplified version - in production you might want to refactor common logic
+            foreach (var filePath in filePaths)
+            {
+                _status.CurrentFile++;
+                _status.Message = $"Processing {Path.GetFileName(filePath)}...";
+
+                Console.WriteLine("================================================================================");
+                Console.WriteLine($"📋 Przetwarzanie [{_status.CurrentFile}/{_status.TotalFiles}]: {Path.GetFileName(filePath)}");
+                Console.WriteLine("================================================================================");
+
+                int recipesExtractedFromFile = 0;
+
+                try
+                {
+                    var processedInThisPdf = new List<string>();
+                    var recentRecipes = checkDuplicates ? _db.GetRecentRecipes(recentRecipesContext) : null;
+
+                    List<RecipeExtractionResult> allRecipes = new List<RecipeExtractionResult>();
+
+                    var progress = new Progress<StreamingProgress>(p =>
+                    {
+                        _status.StreamingBytesReceived = p.BytesReceived;
+                        _status.StreamingMessage = p.Message;
+                        _status.StreamingElapsedSeconds = p.ElapsedSeconds;
+                    });
+
+                    // Check if file is PDF or image
+                    var extension = Path.GetExtension(filePath).ToLowerInvariant();
+
+                    if (extension == ".pdf")
+                    {
+                        // PDF processing
+                        if (activeProvider.SupportsDirectPDF)
+                        {
+                            Console.WriteLine($"📄 Wysyłanie PDF bezpośrednio do {activeProvider.Name}...");
+                            var pdfChunk = _pdfDirectService.PreparePdfForApi(filePath);
+                            _status.TotalChunks = 1;
+                            _status.CurrentChunk = 1;
+
+                            var startTime = DateTime.Now;
+                            var recipes = await aiService.ExtractRecipesFromPdf(pdfChunk, recentRecipes, progress);
+                            var processingTime = (DateTime.Now - startTime).TotalSeconds;
+
+                            Console.WriteLine($"✅ Otrzymano {recipes.Count} przepisów (czas: {processingTime:F1}s)");
+                            allRecipes.AddRange(recipes);
+                        }
+                        else
+                        {
+                            // Image mode
+                            var pagesPerChunk = activeProvider.MaxPagesPerChunk;
+                            var imageChunks = _pdfImageService.RenderPdfInChunks(filePath, pagesPerChunk, dpi: 1200, saveDebugImages: false, targetHeight: 3200);
+
+                            _status.TotalChunks = imageChunks.Count;
+                            _status.CurrentChunk = 0;
+
+                            for (int i = 0; i < imageChunks.Count; i++)
+                            {
+                                var imageChunk = imageChunks[i];
+                                _status.CurrentChunk = i + 1;
+
+                                var startTime = DateTime.Now;
+                                var recipes = await aiService.ExtractRecipesFromImages(imageChunk, recentRecipes, processedInThisPdf, progress);
+                                var processingTime = (DateTime.Now - startTime).TotalSeconds;
+
+                                Console.WriteLine($"✅ Chunk {i + 1}/{imageChunks.Count}: {recipes.Count} przepisów (czas: {processingTime:F1}s)");
+                                allRecipes.AddRange(recipes);
+
+                                if (i < imageChunks.Count - 1)
+                                    await Task.Delay(delayMs);
+                            }
+                        }
+                    }
+                    else if (extension == ".jpg" || extension == ".jpeg" || extension == ".png")
+                    {
+                        // Single image processing
+                        Console.WriteLine($"🖼️ Przetwarzanie pojedynczego obrazu...");
+                        // TODO: Implement single image processing
+                        Console.WriteLine("⚠️ Przetwarzanie pojedynczych obrazów nie jest jeszcze zaimplementowane");
+                    }
+
+                    // Save recipes to database
+                    foreach (var recipeData in allRecipes)
+                    {
+                        if (string.IsNullOrWhiteSpace(recipeData.Name))
+                            continue;
+
+                        if (recipeData.Ingredients == null || recipeData.Ingredients.Count == 0)
+                            continue;
+
+                        if (checkDuplicates && _db.RecipeExists(recipeData.Name))
+                        {
+                            Console.WriteLine($"    ⏭️  Pominięto '{recipeData.Name}' - duplikat");
+                            _status.DuplicatesSkipped++;
+                            continue;
+                        }
+
+                        var recipe = new Recipe
+                        {
+                            Name = recipeData.Name,
+                            Description = recipeData.Description,
+                            Ingredients = string.Join("\n", recipeData.Ingredients),
+                            Instructions = recipeData.Instructions,
+                            Calories = recipeData.Calories,
+                            Protein = recipeData.Protein,
+                            Carbohydrates = recipeData.Carbohydrates,
+                            Fat = recipeData.Fat,
+                            MealType = Enum.TryParse<MealType>(recipeData.MealType, out var mealType)
+                                ? mealType
+                                : MealType.Obiad,
+                            CreatedAt = DateTime.Now,
+                            Servings = recipeData.Servings,
+                            NutritionVariants = recipeData.NutritionVariants
+                        };
+
+                        _db.InsertRecipe(recipe);
+                        Console.WriteLine($"    ✅ Zapisano: {recipe.Name} ({recipe.MealType}) - {recipe.Calories} kcal");
+                        _status.RecipesSaved++;
+                        recipesExtractedFromFile++;
+
+                        processedInThisPdf.Add(recipe.Name);
+                    }
+
+                    // Save file checksum
+                    try
+                    {
+                        var fileChecksum = CalculateFileChecksum(filePath);
+                        var fileInfo = new FileInfo(filePath);
+
+                        var processedFile = new ProcessedFile
+                        {
+                            FileName = Path.GetFileName(filePath),
+                            FileChecksum = fileChecksum,
+                            FileSizeBytes = fileInfo.Length,
+                            ProcessedAt = DateTime.Now,
+                            RecipesExtracted = recipesExtractedFromFile
+                        };
+
+                        _db.InsertProcessedFile(processedFile);
+                        Console.WriteLine($"    💾 Zapisano checksum pliku");
+                    }
+                    catch (Exception checksumEx)
+                    {
+                        Console.WriteLine($"    ⚠️  Nie udało się zapisać checksumy: {checksumEx.Message}");
+                    }
+
+                    // Delete temporary uploaded file
+                    try
+                    {
+                        if (System.IO.File.Exists(filePath))
+                            System.IO.File.Delete(filePath);
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        Console.WriteLine($"    ⚠️  Nie udało się usunąć pliku tymczasowego: {deleteEx.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _status.Errors++;
+                    _status.LastError = $"Error processing {Path.GetFileName(filePath)}: {ex.Message}";
+                    Console.WriteLine($"❌ Błąd podczas przetwarzania: {ex.Message}");
+                }
+
+                Console.WriteLine($"\n✅ Zakończono plik: {Path.GetFileName(filePath)}");
+            }
+
+            _status.IsRunning = false;
+            _status.Message = "Processing completed!";
+
+            Console.WriteLine("\n================================================================================");
+            Console.WriteLine("🎉 PRZETWARZANIE ZAKOŃCZONE");
+            Console.WriteLine("================================================================================");
+            Console.WriteLine($"📁 Plików przetworzonych: {_status.TotalFiles}");
+            Console.WriteLine($"📋 Przepisów zapisanych: {_status.RecipesSaved}");
+            Console.WriteLine($"⏭️  Duplikatów pominiętych: {_status.DuplicatesSkipped}");
+            Console.WriteLine($"❌ Błędów: {_status.Errors}");
+            Console.WriteLine("================================================================================\n");
+        }
+        catch (Exception ex)
+        {
+            _status.IsRunning = false;
+            _status.Message = $"Critical error: {ex.Message}";
+            _status.Errors++;
+            Console.WriteLine($"\n❌ BŁĄD KRYTYCZNY: {ex.Message}");
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private string CalculateFileChecksum(string filePath)
+    {
+        using var stream = System.IO.File.OpenRead(filePath);
+        using var sha256 = SHA256.Create();
+        var hashBytes = sha256.ComputeHash(stream);
+        return Convert.ToHexString(hashBytes);
+    }
 }
 
 public class ProcessingRequest
 {
     public List<string> Files { get; set; } = new();
+}
+
+public class ProcessUploadedRequest
+{
+    public List<string> FilePaths { get; set; } = new();
 }
 
 public class ProcessingStatus
@@ -309,4 +619,9 @@ public class ProcessingStatus
     public int DuplicatesSkipped { get; set; }
     public int Errors { get; set; }
     public string? LastError { get; set; }
+
+    // Streaming progress
+    public int StreamingBytesReceived { get; set; }
+    public string StreamingMessage { get; set; } = "";
+    public double StreamingElapsedSeconds { get; set; }
 }
