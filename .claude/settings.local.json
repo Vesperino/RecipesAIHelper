@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s \"f:\\Projekty\\Przepisy\")",
+      "Bash(dir /b)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
