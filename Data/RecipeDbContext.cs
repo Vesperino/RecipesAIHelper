@@ -44,7 +44,8 @@ public class RecipeDbContext : IDisposable
                 ImagePath TEXT NULL,
                 ImageUrl TEXT NULL,
                 Servings INTEGER NULL,
-                NutritionVariantsJson TEXT NULL
+                NutritionVariantsJson TEXT NULL,
+                SourcePdfFile TEXT NULL
             );
 
             CREATE INDEX IF NOT EXISTS idx_recipes_mealtype ON Recipes(MealType);
@@ -188,6 +189,7 @@ public class RecipeDbContext : IDisposable
         var hasNutritionVariants = false;
         var hasServings = false;
         var hasAlternateMealType = false;
+        var hasSourcePdfFile = false;
         using (var reader = checkCommand.ExecuteReader())
         {
             while (reader.Read())
@@ -201,6 +203,8 @@ public class RecipeDbContext : IDisposable
                     hasServings = true;
                 if (columnName == "AlternateMealType")
                     hasAlternateMealType = true;
+                if (columnName == "SourcePdfFile")
+                    hasSourcePdfFile = true;
             }
         }
 
@@ -264,6 +268,22 @@ public class RecipeDbContext : IDisposable
             {
                 alterCommand.ExecuteNonQuery();
                 Console.WriteLine("✅ Dodano kolumnę AlternateMealType do tabeli Recipes");
+            }
+            catch
+            {
+                // Column might already exist, ignore error
+            }
+        }
+
+        // Add SourcePdfFile column if it doesn't exist
+        if (!hasSourcePdfFile)
+        {
+            var alterCommand = connection.CreateCommand();
+            alterCommand.CommandText = "ALTER TABLE Recipes ADD COLUMN SourcePdfFile TEXT NULL;";
+            try
+            {
+                alterCommand.ExecuteNonQuery();
+                Console.WriteLine("✅ Dodano kolumnę SourcePdfFile do tabeli Recipes");
             }
             catch
             {
@@ -471,8 +491,8 @@ public class RecipeDbContext : IDisposable
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-            INSERT INTO Recipes (Name, Description, Ingredients, Instructions, Calories, Protein, Carbohydrates, Fat, MealType, AlternateMealType, CreatedAt, Servings, NutritionVariantsJson)
-            VALUES (@name, @description, @ingredients, @instructions, @calories, @protein, @carbs, @fat, @mealType, @alternateMealType, @createdAt, @servings, @nutritionVariants)
+            INSERT INTO Recipes (Name, Description, Ingredients, Instructions, Calories, Protein, Carbohydrates, Fat, MealType, AlternateMealType, CreatedAt, Servings, NutritionVariantsJson, SourcePdfFile)
+            VALUES (@name, @description, @ingredients, @instructions, @calories, @protein, @carbs, @fat, @mealType, @alternateMealType, @createdAt, @servings, @nutritionVariants, @sourcePdfFile)
         ";
 
         command.Parameters.AddWithValue("@name", recipe.Name);
@@ -488,6 +508,7 @@ public class RecipeDbContext : IDisposable
         command.Parameters.AddWithValue("@createdAt", recipe.CreatedAt.ToString("O"));
         command.Parameters.AddWithValue("@servings", (object?)recipe.Servings ?? DBNull.Value);
         command.Parameters.AddWithValue("@nutritionVariants", (object?)recipe.NutritionVariantsJson ?? DBNull.Value);
+        command.Parameters.AddWithValue("@sourcePdfFile", (object?)recipe.SourcePdfFile ?? DBNull.Value);
 
         command.ExecuteNonQuery();
 
@@ -539,7 +560,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15)
+                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15),
+                SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
             });
         }
 
@@ -587,7 +609,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15)
+                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15),
+                SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
             });
         }
 
@@ -627,7 +650,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = columnCount > 14 && !reader.IsDBNull(14) ? reader.GetString(14) : null,
-                AlternateMealType = columnCount > 15 && !reader.IsDBNull(15) ? (MealType?)reader.GetInt32(15) : null
+                AlternateMealType = columnCount > 15 && !reader.IsDBNull(15) ? (MealType?)reader.GetInt32(15) : null,
+                SourcePdfFile = columnCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
             };
 
             // Debug: Log first recipe's NutritionVariantsJson
@@ -704,7 +728,9 @@ public class RecipeDbContext : IDisposable
                     ImagePath = reader.IsDBNull(11) ? null : reader.GetString(11),
                     ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                     Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
-                    NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14)
+                    NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
+                    AlternateMealType = reader.FieldCount > 15 && !reader.IsDBNull(15) ? (MealType?)reader.GetInt32(15) : null,
+                    SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
                 };
             }
         }
@@ -746,7 +772,8 @@ public class RecipeDbContext : IDisposable
                 ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15)
+                AlternateMealType = reader.IsDBNull(15) ? null : (MealType?)reader.GetInt32(15),
+                SourcePdfFile = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
             });
         }
 
@@ -786,7 +813,8 @@ public class RecipeDbContext : IDisposable
                 MealType = @mealType,
                 AlternateMealType = @alternateMealType,
                 Servings = @servings,
-                NutritionVariantsJson = @nutritionVariants
+                NutritionVariantsJson = @nutritionVariants,
+                SourcePdfFile = @sourcePdfFile
             WHERE Id = @id
         ";
 
@@ -803,6 +831,7 @@ public class RecipeDbContext : IDisposable
         command.Parameters.AddWithValue("@alternateMealType", recipe.AlternateMealType.HasValue ? (object)(int)recipe.AlternateMealType.Value : DBNull.Value);
         command.Parameters.AddWithValue("@servings", (object?)recipe.Servings ?? DBNull.Value);
         command.Parameters.AddWithValue("@nutritionVariants", (object?)recipe.NutritionVariantsJson ?? DBNull.Value);
+        command.Parameters.AddWithValue("@sourcePdfFile", (object?)recipe.SourcePdfFile ?? DBNull.Value);
 
         return command.ExecuteNonQuery() > 0;
     }
@@ -1726,6 +1755,113 @@ public class RecipeDbContext : IDisposable
         }
 
         return processedChecksums;
+    }
+
+    // ==================== SOURCE PDF FILE MANAGEMENT ====================
+
+    /// <summary>
+    /// Get list of unique source PDF files from recipes
+    /// </summary>
+    public List<string> GetUniqueSourceFiles()
+    {
+        var connection = GetConnection();
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT DISTINCT SourcePdfFile
+            FROM Recipes
+            WHERE SourcePdfFile IS NOT NULL
+            ORDER BY SourcePdfFile
+        ";
+
+        var sourceFiles = new List<string>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            sourceFiles.Add(reader.GetString(0));
+        }
+
+        return sourceFiles;
+    }
+
+    /// <summary>
+    /// Get all recipes from a specific source PDF file
+    /// </summary>
+    public List<Recipe> GetRecipesBySourceFile(string sourcePdfFile)
+    {
+        var connection = GetConnection();
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM Recipes WHERE SourcePdfFile = @sourcePdfFile ORDER BY CreatedAt";
+        command.Parameters.AddWithValue("@sourcePdfFile", sourcePdfFile);
+
+        var recipes = new List<Recipe>();
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            var columnCount = reader.FieldCount;
+            recipes.Add(new Recipe
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+                Description = reader.GetString(2),
+                Ingredients = reader.GetString(3),
+                Instructions = reader.GetString(4),
+                Calories = reader.GetInt32(5),
+                Protein = reader.GetDouble(6),
+                Carbohydrates = reader.GetDouble(7),
+                Fat = reader.GetDouble(8),
+                MealType = (MealType)reader.GetInt32(9),
+                CreatedAt = DateTime.Parse(reader.GetString(10)),
+                ImagePath = reader.IsDBNull(11) ? null : reader.GetString(11),
+                ImageUrl = reader.IsDBNull(12) ? null : reader.GetString(12),
+                Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
+                NutritionVariantsJson = columnCount > 14 && !reader.IsDBNull(14) ? reader.GetString(14) : null,
+                AlternateMealType = columnCount > 15 && !reader.IsDBNull(15) ? (MealType?)reader.GetInt32(15) : null,
+                SourcePdfFile = columnCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
+            });
+        }
+
+        return recipes;
+    }
+
+    /// <summary>
+    /// Delete all recipes from a specific source PDF file
+    /// </summary>
+    public int DeleteRecipesBySourceFile(string sourcePdfFile)
+    {
+        var connection = GetConnection();
+        var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM Recipes WHERE SourcePdfFile = @sourcePdfFile";
+        command.Parameters.AddWithValue("@sourcePdfFile", sourcePdfFile);
+
+        return command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Get count of recipes grouped by source file
+    /// </summary>
+    public Dictionary<string, int> GetRecipeCountsBySourceFile()
+    {
+        var connection = GetConnection();
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT SourcePdfFile, COUNT(*) as Count
+            FROM Recipes
+            WHERE SourcePdfFile IS NOT NULL
+            GROUP BY SourcePdfFile
+            ORDER BY SourcePdfFile
+        ";
+
+        var counts = new Dictionary<string, int>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var sourcePdfFile = reader.GetString(0);
+            var count = reader.GetInt32(1);
+            counts[sourcePdfFile] = count;
+        }
+
+        return counts;
     }
 
     public void Dispose()

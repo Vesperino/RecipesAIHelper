@@ -64,7 +64,7 @@ public class DessertPlanningService
                 var response = await _model.GenerateContent(prompt);
                 var responseText = response?.Text?.Trim() ?? "";
 
-                // Debug logging
+                // Debug logging - ZAWSZE pokazuj pełną odpowiedź
                 if (string.IsNullOrEmpty(responseText))
                 {
                     Console.WriteLine("   🔍 DEBUG: Pusta odpowiedź od AI");
@@ -72,10 +72,10 @@ public class DessertPlanningService
                 }
 
                 Console.WriteLine($"   🔍 DEBUG: Odpowiedź AI ({responseText.Length} znaków)");
-                if (responseText.Length < 500)
-                {
-                    Console.WriteLine($"   🔍 DEBUG: Surowa odpowiedź: {responseText}");
-                }
+                Console.WriteLine($"   🔍 DEBUG: PEŁNA SUROWA ODPOWIEDŹ:");
+                Console.WriteLine("   " + new string('─', 60));
+                Console.WriteLine(responseText);
+                Console.WriteLine("   " + new string('─', 60));
 
                 // Remove markdown code blocks
                 var jsonResponse = responseText
@@ -136,56 +136,40 @@ public class DessertPlanningService
 
         var promptBuilder = new StringBuilder();
 
-        promptBuilder.AppendLine("Jesteś asystentem dietetycznym. Zaplanuj jak rozłożyć deser dla grupy osób.");
+        promptBuilder.AppendLine("Zaplanuj rozłożenie deseru dla grupy osób na kilka dni.");
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**DESER:**");
-        promptBuilder.AppendLine($"Nazwa: {dessert.Name}");
+        promptBuilder.AppendLine("**DANE:**");
+        promptBuilder.AppendLine($"Deser: {dessert.Name}");
         promptBuilder.AppendLine("Warianty odżywcze:");
         promptBuilder.AppendLine(nutritionInfo);
         if (dessert.Servings.HasValue)
         {
-            promptBuilder.AppendLine($"Liczba porcji (jeśli podana): {dessert.Servings}");
+            promptBuilder.AppendLine($"Liczba porcji: {dessert.Servings}");
         }
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**OSOBY W PLANIE:**");
+        promptBuilder.AppendLine($"Osoby ({persons.Count}):");
         foreach (var person in persons)
         {
             promptBuilder.AppendLine($"  - {person.Name}: {person.TargetCalories} kcal/dzień");
         }
-        promptBuilder.AppendLine($"Liczba osób: {persons.Count}");
-        promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**BUDŻET DZIENNY NA DESERY:** ~12% dziennych kalorii (ok. 200-300 kcal/osoba)");
-        promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**ZADANIE:**");
-        promptBuilder.AppendLine("1. Przeanalizuj warianty odżywcze deseru");
-        promptBuilder.AppendLine("2. Określ ile porcji ma cały przepis (jeśli nie podano, oblicz z kalorii)");
-        promptBuilder.AppendLine($"3. Oblicz ile porcji potrzeba dziennie dla {persons.Count} osób");
-        promptBuilder.AppendLine($"4. Zaplanuj na ile dni wystarczy (max {maxDays} dni)");
-        promptBuilder.AppendLine("5. **WAŻNE**: Każda osoba dostaje TĘ SAMĄ WIELKOŚĆ PORCJI (bez skalowania dla deserów!)");
+        promptBuilder.AppendLine($"Budżet na desery: ~200-300 kcal/osoba/dzień");
+        promptBuilder.AppendLine($"Max dni do rozłożenia: {maxDays}");
         promptBuilder.AppendLine();
         promptBuilder.AppendLine("**ZASADY:**");
-        promptBuilder.AppendLine("- Jeśli deser ma >600 kcal całość → rozłóż na kilka dni");
-        promptBuilder.AppendLine("- Jeśli deser ma <400 kcal całość → 1 porcja na osobę dziennie");
-        promptBuilder.AppendLine("- Priorytetyzuj aby nie zostawać resztek (pełne porcje)");
+        promptBuilder.AppendLine("- Każda osoba dostaje TĘ SAMĄ wielkość porcji");
+        promptBuilder.AppendLine("- Priorytet: nie zostawiać resztek (pełne porcje)");
+        promptBuilder.AppendLine("- Jeśli deser >600 kcal całość → rozłóż na kilka dni");
+        promptBuilder.AppendLine("- Jeśli deser <400 kcal całość → można 1 dzień");
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**FORMAT ODPOWIEDZI:**");
-        promptBuilder.AppendLine("Zwróć JSON:");
+        promptBuilder.AppendLine("**FORMAT JSON (TYLKO JSON, BEZ TEKSTU):**");
         promptBuilder.AppendLine(@"{
   ""totalPortions"": 4,
-  ""portionCalories"": 300,
+  ""portionCalories"": 256.5,
   ""portionsPerPerson"": 1.0,
   ""daysToSpread"": 2,
-  ""portionsPerDay"": 3,
-  ""explanation"": ""Deser ma 4 porcje po 300 kcal. Dla 3 osób wystarczy na 1.3 dnia, zaokrąglamy do 2 dni (dzień 1: wszyscy, dzień 2: 1 osoba)""
+  ""portionsPerDay"": 2,
+  ""explanation"": ""Krótkie uzasadnienie planu""
 }");
-        promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**PRZYKŁAD:**");
-        promptBuilder.AppendLine("Tort (całość: 1200 kcal, porcja: 300 kcal) dla 3 osób:");
-        promptBuilder.AppendLine("- totalPortions: 4 (1200/300)");
-        promptBuilder.AppendLine("- portionCalories: 300");
-        promptBuilder.AppendLine("- portionsPerPerson: 1.0 (każdy dostaje tyle samo)");
-        promptBuilder.AppendLine("- daysToSpread: 2 (4 porcje / 3 osoby = 1.33 dni → 2 dni)");
-        promptBuilder.AppendLine("- portionsPerDay: 3 (dzień 1), 1 (dzień 2)");
 
         return promptBuilder.ToString();
     }
@@ -218,7 +202,7 @@ public class DessertPlan
     public int TotalPortions { get; set; }
 
     [JsonPropertyName("portionCalories")]
-    public int PortionCalories { get; set; }
+    public double PortionCalories { get; set; }
 
     [JsonPropertyName("portionsPerPerson")]
     public double PortionsPerPerson { get; set; }

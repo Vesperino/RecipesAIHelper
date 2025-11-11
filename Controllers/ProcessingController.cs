@@ -265,7 +265,8 @@ public class ProcessingController : ControllerBase
                                 : MealType.Obiad,
                             CreatedAt = DateTime.Now,
                             Servings = recipeData.Servings,
-                            NutritionVariants = recipeData.NutritionVariants
+                            NutritionVariants = recipeData.NutritionVariants,
+                            SourcePdfFile = Path.GetFileName(pdfFile)
                         };
 
                         // Debug: Log NutritionVariantsJson before saving
@@ -508,7 +509,8 @@ public class ProcessingController : ControllerBase
                                 : MealType.Obiad,
                             CreatedAt = DateTime.Now,
                             Servings = recipeData.Servings,
-                            NutritionVariants = recipeData.NutritionVariants
+                            NutritionVariants = recipeData.NutritionVariants,
+                            SourcePdfFile = Path.GetFileName(filePath)
                         };
 
                         _db.InsertRecipe(recipe);

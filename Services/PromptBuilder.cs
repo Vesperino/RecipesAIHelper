@@ -101,6 +101,43 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 ""instructions"": ""1. W wysokiej misce mieszamy mąkę z przyprawami i ciepłą wodą.\n2. Posypujemy blat mąką i wałkujemy ciasto.\n3. Smażymy na patelni z dwóch stron.""
 ```
 
+## ⚠️ SOSY I REFERENCJE DO INNYCH STRON
+
+**KLUCZOWA INSTRUKCJA**: Jeśli przepis zawiera referencję do sosu lub innego przepisu na innej stronie (np. ""sos na stronie 26"", ""patrz str. 15""):
+
+1. **PRZESZUKAJ dostępne strony** w obecnych obrazach/PDF
+2. **Jeśli znajdziesz sos**:
+   - ✅ WYEKSTRAKTUJ składniki sosu i DODAJ je do listy `ingredients` głównego przepisu (z oznaczeniem ""Do sosu:"")
+   - ✅ WYEKSTRAKTUJ instrukcje sosu i DODAJ je do `instructions` głównego przepisu (jako osobny krok, np. ""Przygotowanie sosu: 1. ... 2. ..."")
+   - ✅ W opisie (`description`) wspomnij, że przepis zawiera sos
+
+3. **Jeśli NIE znajdziesz sosu** (strona poza zakresem chunka):
+   - ⚠️ DODAJ na POCZĄTKU instrukcji: ""⚠️ UWAGA: Do tego przepisu potrzebny jest [nazwa sosu] ze strony X. Sprawdź tę stronę w PDF.\n\n""
+   - ⚠️ W `ingredients` dodaj: ""[nazwa sosu] - patrz strona X""
+
+**Przykład POPRAWNEGO postępowania**:
+
+Przepis: ""Kurczak z sosem czosnkowym (sos na str. 26)""
+
+→ ZNAJDŹ stronę 26, wyekstraktuj sos i zapisz:
+
+```json
+{{
+  ""name"": ""Kurczak z sosem czosnkowym"",
+  ""description"": ""Kurczak pieczony z domowym sosem czosnkowym"",
+  ""ingredients"": [
+    ""500g piersi z kurczaka"",
+    ""2 łyżki oleju"",
+    ""Do sosu: 3 ząbki czosnku"",
+    ""Do sosu: 200ml śmietany"",
+    ""Do sosu: sól, pieprz""
+  ],
+  ""instructions"": ""1. Kurczaka kroimy i przyprawiamy.\n2. Smażymy na patelni 10 minut.\n\nPrzygotowanie sosu:\n3. Czosnek przeciskamy przez praskę.\n4. Mieszamy ze śmietaną.\n5. Podgrzewamy i doprawiamy.""
+}}
+```
+
+**NIGDY** nie zostawiaj samej informacji ""sos na stronie X"" bez ekstrakcji lub wyraźnego ostrzeżenia!
+
 ## KATEGORYZACJA POSIŁKU (mealType)
 
 Określ typ posiłku na podstawie składników i kontekstu:
@@ -260,6 +297,43 @@ Formatuj instrukcje tak, aby KAŻDY KROK był w NOWEJ LINII:
 ```
 ""instructions"": ""1. Mieszamy składniki.\n2. Formujemy ciasto.\n3. Pieczemy.""
 ```
+
+## ⚠️ SOSY I REFERENCJE DO INNYCH STRON
+
+**KLUCZOWA INSTRUKCJA**: Jeśli przepis zawiera referencję do sosu lub innego przepisu na innej stronie (np. ""sos na stronie 26"", ""patrz str. 15""):
+
+1. **PRZESZUKAJ dostępne strony** w obecnym PDF
+2. **Jeśli znajdziesz sos**:
+   - ✅ WYEKSTRAKTUJ składniki sosu i DODAJ je do listy `ingredients` głównego przepisu (z oznaczeniem ""Do sosu:"")
+   - ✅ WYEKSTRAKTUJ instrukcje sosu i DODAJ je do `instructions` głównego przepisu (jako osobny krok, np. ""Przygotowanie sosu: 1. ... 2. ..."")
+   - ✅ W opisie (`description`) wspomnij, że przepis zawiera sos
+
+3. **Jeśli NIE znajdziesz sosu**:
+   - ⚠️ DODAJ na POCZĄTKU instrukcji: ""⚠️ UWAGA: Do tego przepisu potrzebny jest [nazwa sosu] ze strony X. Sprawdź tę stronę w PDF.\n\n""
+   - ⚠️ W `ingredients` dodaj: ""[nazwa sosu] - patrz strona X""
+
+**Przykład POPRAWNEGO postępowania**:
+
+Przepis: ""Kurczak z sosem czosnkowym (sos na str. 26)""
+
+→ ZNAJDŹ stronę 26, wyekstraktuj sos i zapisz:
+
+```json
+{{
+  ""name"": ""Kurczak z sosem czosnkowym"",
+  ""description"": ""Kurczak pieczony z domowym sosem czosnkowym"",
+  ""ingredients"": [
+    ""500g piersi z kurczaka"",
+    ""2 łyżki oleju"",
+    ""Do sosu: 3 ząbki czosnku"",
+    ""Do sosu: 200ml śmietany"",
+    ""Do sosu: sól, pieprz""
+  ],
+  ""instructions"": ""1. Kurczaka kroimy i przyprawiamy.\n2. Smażymy na patelni 10 minut.\n\nPrzygotowanie sosu:\n3. Czosnek przeciskamy przez praskę.\n4. Mieszamy ze śmietaną.\n5. Podgrzewamy i doprawiamy.""
+}}
+```
+
+**NIGDY** nie zostawiaj samej informacji ""sos na stronie X"" bez ekstrakcji lub wyraźnego ostrzeżenia!
 
 ## KATEGORYZACJA POSIŁKU (mealType)
 

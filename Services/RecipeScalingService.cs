@@ -64,7 +64,7 @@ public class RecipeScalingService
                 var response = await _model.GenerateContent(prompt);
                 var responseText = response?.Text?.Trim() ?? "";
 
-                // Debug logging
+                // Debug logging - ZAWSZE pokazuj pełną odpowiedź
                 if (string.IsNullOrEmpty(responseText))
                 {
                     Console.WriteLine("   🔍 DEBUG: Pusta odpowiedź od AI");
@@ -72,10 +72,10 @@ public class RecipeScalingService
                 }
 
                 Console.WriteLine($"   🔍 DEBUG: Odpowiedź AI ({responseText.Length} znaków)");
-                if (responseText.Length < 500)
-                {
-                    Console.WriteLine($"   🔍 DEBUG: Surowa odpowiedź: {responseText}");
-                }
+                Console.WriteLine($"   🔍 DEBUG: PEŁNA SUROWA ODPOWIEDŹ:");
+                Console.WriteLine("   " + new string('─', 60));
+                Console.WriteLine(responseText);
+                Console.WriteLine("   " + new string('─', 60));
 
                 // Remove markdown code blocks
                 var jsonResponse = responseText
@@ -132,41 +132,32 @@ public class RecipeScalingService
     {
         var promptBuilder = new StringBuilder();
 
-        promptBuilder.AppendLine("Jesteś asystentem kuchennym. Przeskaluj składniki przepisu według podanego współczynnika.");
+        promptBuilder.AppendLine($"Przeskaluj składniki przepisu przez współczynnik {scalingFactor:F2}.");
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**PRZEPIS BAZOWY:**");
-        promptBuilder.AppendLine($"Nazwa: {baseRecipe.Name}");
-        promptBuilder.AppendLine($"Typ posiłku: {mealType}");
+        promptBuilder.AppendLine("**DANE:**");
+        promptBuilder.AppendLine($"Przepis: {baseRecipe.Name} ({mealType})");
+        promptBuilder.AppendLine($"Współczynnik: {scalingFactor:F2} ({(scalingFactor > 1 ? "+" : "")}{(scalingFactor - 1) * 100:F0}%)");
         promptBuilder.AppendLine();
         promptBuilder.AppendLine("**SKŁADNIKI BAZOWE:**");
         promptBuilder.AppendLine(baseRecipe.Ingredients);
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine($"**WSPÓŁCZYNNIK SKALOWANIA:** {scalingFactor:F2} ({(scalingFactor > 1 ? "+" : "")}{(scalingFactor - 1) * 100:F0}%)");
-        promptBuilder.AppendLine();
         promptBuilder.AppendLine("**ZASADY:**");
-        promptBuilder.AppendLine($"1. **Mnóż każdą ilość przez {scalingFactor:F2}**");
-        promptBuilder.AppendLine("2. **Zaokrąglij do praktycznych wartości**:");
-        promptBuilder.AppendLine("   - Dla składników >100g: zaokrąglij do 5g lub 10g (np. 127g → 130g)");
-        promptBuilder.AppendLine("   - Dla składników <100g: zaokrąglij do 1g lub 5g (np. 23g → 25g)");
-        promptBuilder.AppendLine("   - Dla płynów: zaokrąglij do 5ml lub 10ml");
-        promptBuilder.AppendLine("   - Dla sztuk: zaokrąglij do 0.5 lub całości (np. 1.3 cebuli → 1.5 cebuli)");
-        promptBuilder.AppendLine("3. **Zachowaj jednostki miary** z oryginału");
-        promptBuilder.AppendLine("4. **Dla \"do smaku\" / \"opcjonalnie\"**: pozostaw bez zmian");
+        promptBuilder.AppendLine($"1. Pomnóż każdą ilość przez {scalingFactor:F2}");
+        promptBuilder.AppendLine("2. Zaokrąglij do praktycznych wartości:");
+        promptBuilder.AppendLine("   - >100g → do 5g lub 10g (127g → 130g)");
+        promptBuilder.AppendLine("   - <100g → do 1g lub 5g (23g → 25g)");
+        promptBuilder.AppendLine("   - Płyny → do 5ml lub 10ml");
+        promptBuilder.AppendLine("   - Sztuki → do 0.5 lub całości (1.3 → 1.5)");
+        promptBuilder.AppendLine("3. Zachowaj jednostki z oryginału");
+        promptBuilder.AppendLine("4. \"Do smaku\"/\"opcjonalnie\" → bez zmian");
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**FORMAT ODPOWIEDZI:**");
-        promptBuilder.AppendLine("Zwróć JSON:");
+        promptBuilder.AppendLine("**FORMAT JSON (TYLKO JSON, BEZ TEKSTU):**");
         promptBuilder.AppendLine(@"{
   ""scaledIngredients"": [
-    ""pierwsza linia składnika"",
-    ""druga linia składnika"",
-    ...
+    ""linia 1"",
+    ""linia 2""
   ]
 }");
-        promptBuilder.AppendLine();
-        promptBuilder.AppendLine("**PRZYKŁAD:**");
-        promptBuilder.AppendLine("Bazowe: \"200g kurczaka\"");
-        promptBuilder.AppendLine($"Współczynnik: {scalingFactor:F2}");
-        promptBuilder.AppendLine($"Wynik: \"{(int)Math.Round(200 * scalingFactor / 5.0) * 5}g kurczaka\" (200 * {scalingFactor:F2} = {200 * scalingFactor:F1} → zaokrąglone)");
 
         return promptBuilder.ToString();
     }

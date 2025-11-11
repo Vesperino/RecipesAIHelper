@@ -62,6 +62,9 @@ public class Recipe
     // Image paths
     public string? ImagePath { get; set; }
     public string? ImageUrl { get; set; }
+
+    // Source PDF file for regeneration
+    public string? SourcePdfFile { get; set; }
 }
 
 public class NutritionVariant

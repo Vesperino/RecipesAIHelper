@@ -124,11 +124,13 @@ function appData() {
             perDay: 1,
             useCalorieTarget: false,
             targetCalories: 1800,
-            calorieMargin: 200
+            calorieMargin: 200,
+            skipScaling: false
         },
         shoppingList: null,
         isGeneratingShoppingList: false,
         isGeneratingPlan: false,
+        isScalingRecipes: false,
         draggedRecipe: null,
         draggedEntry: null,
         draggedFromDayId: null,
@@ -145,6 +147,13 @@ function appData() {
             name: '',
             targetCalories: 2000
         },
+
+        // Source Files Management
+        sourceFiles: [],
+        sourceFilesLoading: false,
+        showSourceFileRecipes: false,
+        selectedSourceFileName: '',
+        sourceFileRecipes: [],
 
         // Notifications
         notifications: [],
@@ -1783,12 +1792,58 @@ function appData() {
 
             if (!this.draggedEntry) return;
 
-            // If dropping on the same day, do nothing
+            // If dropping on the same day, handle reordering
             if (this.draggedFromDayId === targetDayId) {
-                this.endDragEntry();
+                // Get the drop target element
+                const dropTarget = event.target.closest('[draggable="true"]');
+                if (!dropTarget) {
+                    this.endDragEntry();
+                    return;
+                }
+
+                // Find the target entry from the day's entries
+                const day = this.selectedPlan.days.find(d => d.id === targetDayId);
+                if (!day || !day.entries) {
+                    this.endDragEntry();
+                    return;
+                }
+
+                // Get the entry ID from the drop target
+                const targetEntryElement = dropTarget;
+                const targetEntryIndex = Array.from(dropTarget.parentElement.children).indexOf(dropTarget);
+                const targetEntry = day.entries[targetEntryIndex];
+
+                if (!targetEntry || targetEntry.id === this.draggedEntry.id) {
+                    this.endDragEntry();
+                    return;
+                }
+
+                // Reorder: update the dragged entry's order to match target
+                try {
+                    const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${targetDayId}/entries/${this.draggedEntry.id}/order`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            newOrder: targetEntry.order
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to reorder entry');
+
+                    this.showNotification('Kolejność zmieniona!', 'success');
+
+                    // Reload the selected plan
+                    await this.selectMealPlan(this.selectedPlan.id);
+                } catch (error) {
+                    console.error('Error reordering entry:', error);
+                    this.showNotification('Błąd zmiany kolejności: ' + error.message, 'error');
+                } finally {
+                    this.endDragEntry();
+                }
                 return;
             }
 
+            // Moving between days
             try {
                 // First, add the recipe to the target day
                 const addResponse = await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${targetDayId}/entries`, {
@@ -1866,6 +1921,51 @@ function appData() {
                 this.showNotification('Błąd auto-generowania: ' + error.message, 'error');
             } finally {
                 this.isGeneratingPlan = false;
+            }
+        },
+
+        async scaleRecipes() {
+            if (!this.selectedPlan?.persons || this.selectedPlan.persons.length === 0) {
+                this.showNotification('Brak osób w planie - dodaj osoby aby przeskalować przepisy', 'error');
+                return;
+            }
+
+            this.isScalingRecipes = true;
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/scale-recipes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to scale recipes');
+                }
+
+                const result = await response.json();
+
+                // Show success message
+                this.showNotification(result.message || `Przeskalowano ${result.scaledCount} przepisów!`, 'success');
+
+                // Show warnings if any
+                if (result.warnings && result.warnings.length > 0) {
+                    setTimeout(() => {
+                        result.warnings.forEach((warning, index) => {
+                            setTimeout(() => {
+                                this.showNotification(warning, 'error');
+                            }, index * 500);
+                        });
+                    }, 1000);
+                }
+
+                // Reload the plan
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error scaling recipes:', error);
+                this.showNotification('Błąd skalowania: ' + error.message, 'error');
+            } finally {
+                this.isScalingRecipes = false;
             }
         },
 
@@ -2150,6 +2250,102 @@ function appData() {
             }
         },
 
+        // ============== SOURCE FILES ==============
+
+        async loadSourceFiles() {
+            this.sourceFilesLoading = true;
+            try {
+                const response = await fetch('/api/sourcefiles');
+                if (response.ok) {
+                    this.sourceFiles = await response.json();
+                    console.log('Loaded source files:', this.sourceFiles);
+                } else {
+                    console.error('Failed to load source files');
+                    this.showNotification('Nie udało się załadować plików źródłowych', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading source files:', error);
+                this.showNotification('Błąd podczas ładowania plików źródłowych', 'error');
+            } finally {
+                this.sourceFilesLoading = false;
+            }
+        },
+
+        async viewSourceFileRecipes(fileName) {
+            this.selectedSourceFileName = fileName;
+            this.sourceFileRecipes = [];
+            this.showSourceFileRecipes = true;
+
+            try {
+                const response = await fetch(`/api/sourcefiles/${encodeURIComponent(fileName)}/recipes`);
+                if (response.ok) {
+                    this.sourceFileRecipes = await response.json();
+                    console.log(`Loaded ${this.sourceFileRecipes.length} recipes from ${fileName}`);
+                } else {
+                    console.error('Failed to load recipes for source file');
+                    this.showNotification('Nie udało się załadować przepisów', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading source file recipes:', error);
+                this.showNotification('Błąd podczas ładowania przepisów', 'error');
+            }
+        },
+
+        async deleteSourceFileRecipes(fileName) {
+            if (!confirm(`Czy na pewno chcesz usunąć wszystkie przepisy z pliku "${fileName}"?\n\nTa operacja jest nieodwracalna!`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sourcefiles/${encodeURIComponent(fileName)}/recipes`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.showNotification(`Usunięto ${result.deletedCount} przepisów z pliku "${fileName}"`, 'success');
+                    await this.loadSourceFiles();
+                    await this.loadRecipes(); // Refresh main recipe list
+                } else {
+                    const error = await response.json();
+                    this.showNotification(`Błąd: ${error.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting source file recipes:', error);
+                this.showNotification('Błąd podczas usuwania przepisów', 'error');
+            }
+        },
+
+        async regenerateSourceFile(fileName) {
+            if (!confirm(`Czy na pewno chcesz przegenerować wszystkie przepisy z pliku "${fileName}"?\n\nStare przepisy zostaną usunięte, a plik zostanie ponownie przetworzony.\nMoże to potrwać kilka minut.`)) {
+                return;
+            }
+
+            this.showNotification(`Rozpoczęto regenerację przepisów z pliku "${fileName}"...`, 'info');
+
+            try {
+                const response = await fetch(`/api/sourcefiles/${encodeURIComponent(fileName)}/regenerate`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    this.showNotification(
+                        `Regeneracja zakończona!\nUsunięto: ${result.deletedCount} przepisów\nZapisano: ${result.savedCount} nowych przepisów\nPominięto duplikatów: ${result.skippedCount}`,
+                        'success'
+                    );
+                    await this.loadSourceFiles();
+                    await this.loadRecipes(); // Refresh main recipe list
+                } else {
+                    const error = await response.json();
+                    this.showNotification(`Błąd: ${error.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error regenerating source file:', error);
+                this.showNotification('Błąd podczas regeneracji przepisów', 'error');
+            }
+        },
+
         // ============== NOTIFICATIONS ==============
 
         showNotification(message, type = 'success') {
@@ -2175,6 +2371,12 @@ document.addEventListener('alpine:initialized', () => {
     setInterval(() => {
         if (app.currentTab !== lastTab) {
             localStorage.setItem('selectedTab', app.currentTab);
+
+            // Load source files when switching to sourcefiles tab
+            if (app.currentTab === 'sourcefiles' && app.sourceFiles.length === 0) {
+                app.loadSourceFiles();
+            }
+
             lastTab = app.currentTab;
         }
     }, 100);
