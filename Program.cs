@@ -75,10 +75,14 @@ class Program
         if (existingProviders.Count == 0 && !string.IsNullOrEmpty(openAiApiKey) && openAiApiKey != "YOUR_OPENAI_API_KEY_HERE")
         {
             Console.WriteLine("📋 Migracja klucza OpenAI z appsettings.json do bazy danych...");
+
+            // Save API key to Settings table
+            db.UpsertSetting("OpenAI_ApiKey", openAiApiKey, "string", "Klucz API OpenAI (dla ekstrakcji przepisów i generowania obrazów)");
+
+            // Create AIProvider without API key (it will be fetched from Settings)
             var openAiProvider = new AIProvider
             {
                 Name = "OpenAI",
-                ApiKey = openAiApiKey,
                 Model = openAiModel,
                 IsActive = true,
                 Priority = 10,
@@ -88,7 +92,7 @@ class Program
                 UpdatedAt = DateTime.Now
             };
             db.InsertAIProvider(openAiProvider);
-            Console.WriteLine("✅ Klucz OpenAI zmigrowany do bazy danych");
+            Console.WriteLine("✅ Klucz OpenAI zmigrowany do Settings, provider utworzony");
         }
 
         Console.WriteLine("=== Recipe AI Helper - Web Mode ===");
