@@ -878,16 +878,14 @@
                     <button @click="saveTodoistSettings()"
                             :disabled="todoistSettingsSaving"
                             :class="todoistSettingsSaving ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-600 hover:to-blue-700'"
-                            class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
-                        <span x-show="!todoistSettingsSaving">💾 Zapisz Klucz API</span>
-                        <span x-show="todoistSettingsSaving">⏳ Zapisywanie...</span>
+                            class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+                            x-text="todoistSettingsSaving ? '⏳ Zapisywanie...' : '💾 Zapisz Klucz API'">
                     </button>
                     <button @click="testTodoistConnection()"
                             :disabled="todoistTestRunning || !todoistSettings.isConfigured"
                             :class="(todoistTestRunning || !todoistSettings.isConfigured) ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-600 hover:to-green-700'"
-                            class="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
-                        <span x-show="!todoistTestRunning">🧪 Testuj Połączenie</span>
-                        <span x-show="todoistTestRunning">⏳ Testowanie...</span>
+                            class="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+                            x-text="todoistTestRunning ? '⏳ Testowanie...' : '🧪 Testuj Połączenie'">
                     </button>
                 </div>
 
