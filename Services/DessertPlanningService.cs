@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Mscc.GenerativeAI;
+using Polly;
+using Polly.Retry;
 using RecipesAIHelper.Models;
 
 namespace RecipesAIHelper.Services;
@@ -13,12 +15,29 @@ public class DessertPlanningService
 {
     private readonly GoogleAI _genAi;
     private readonly GenerativeModel _model;
+    private readonly AsyncRetryPolicy _retryPolicy;
+    private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
 
     public DessertPlanningService(string apiKey, string modelName = "gemini-2.5-flash")
     {
         _genAi = new GoogleAI(apiKey);
         _model = _genAi.GenerativeModel(model: modelName);
         _model.Timeout = TimeSpan.FromMinutes(2);
+
+        // Retry policy with exponential backoff
+        _retryPolicy = Policy
+            .Handle<Exception>(ex =>
+                ex.Message.Contains("503") ||
+                ex.Message.Contains("overloaded") ||
+                ex.Message.Contains("UNAVAILABLE") ||
+                ex.Message.Contains("RESOURCE_EXHAUSTED"))
+            .WaitAndRetryAsync(
+                retryCount: 3,
+                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000)),
+                onRetry: (exception, timeSpan, retryCount, context) =>
+                {
+                    Console.WriteLine($"   ⚠️ Retry {retryCount}/3 po {timeSpan.TotalSeconds:F1}s: {exception.Message}");
+                });
 
         Console.WriteLine($"✅ DessertPlanningService zainicjalizowany ({modelName})");
     }
@@ -31,45 +50,81 @@ public class DessertPlanningService
         List<MealPlanPerson> persons,
         int maxDays = 7)
     {
+        // Rate limiting
+        await _rateLimiter.WaitAsync();
         try
         {
+            await Task.Delay(2000); // 2 second delay between AI calls
+
             Console.WriteLine($"🍰 Planowanie deseru '{dessert.Name}' dla {persons.Count} osób...");
 
-            var prompt = BuildDessertPlanningPrompt(dessert, persons, maxDays);
-            var response = await _model.GenerateContent(prompt);
-            var responseText = response?.Text?.Trim() ?? "";
-
-            if (string.IsNullOrEmpty(responseText))
+            var plan = await _retryPolicy.ExecuteAsync(async () =>
             {
-                Console.WriteLine("❌ Pusta odpowiedź od AI");
-                return GetDefaultDessertPlan(dessert, persons.Count);
-            }
+                var prompt = BuildDessertPlanningPrompt(dessert, persons, maxDays);
+                var response = await _model.GenerateContent(prompt);
+                var responseText = response?.Text?.Trim() ?? "";
 
-            // Remove markdown code blocks
-            var jsonResponse = responseText
-                .Replace("```json", "")
-                .Replace("```", "")
-                .Trim();
+                // Debug logging
+                if (string.IsNullOrEmpty(responseText))
+                {
+                    Console.WriteLine("   🔍 DEBUG: Pusta odpowiedź od AI");
+                    throw new Exception("Empty AI response");
+                }
 
-            // Parse JSON response
-            var plan = JsonSerializer.Deserialize<DessertPlan>(jsonResponse, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
+                Console.WriteLine($"   🔍 DEBUG: Odpowiedź AI ({responseText.Length} znaków)");
+                if (responseText.Length < 500)
+                {
+                    Console.WriteLine($"   🔍 DEBUG: Surowa odpowiedź: {responseText}");
+                }
+
+                // Remove markdown code blocks
+                var jsonResponse = responseText
+                    .Replace("```json", "")
+                    .Replace("```", "")
+                    .Trim();
+
+                // Parse JSON response
+                DessertPlan? parsed;
+                try
+                {
+                    parsed = JsonSerializer.Deserialize<DessertPlan>(jsonResponse, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch (JsonException jsonEx)
+                {
+                    Console.WriteLine($"   🔍 DEBUG: Błąd parsowania JSON: {jsonEx.Message}");
+                    Console.WriteLine($"   🔍 DEBUG: Próbowano parsować: {jsonResponse.Substring(0, Math.Min(200, jsonResponse.Length))}...");
+
+                    // Save to file for debugging
+                    var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"dessert_error_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+                    File.WriteAllText(debugPath, $"Dessert: {dessert.Name}\nPersons: {persons.Count}\n\nResponse:\n{responseText}");
+                    Console.WriteLine($"   🔍 DEBUG: Zapisano pełną odpowiedź do: {debugPath}");
+
+                    throw new Exception($"JSON parse error: {jsonEx.Message}");
+                }
+
+                if (parsed == null)
+                {
+                    Console.WriteLine("   🔍 DEBUG: AI zwróciło null po deserializacji");
+                    throw new Exception("Null dessert plan from AI");
+                }
+
+                return parsed;
             });
-
-            if (plan == null)
-            {
-                Console.WriteLine("❌ AI nie zwróciło planu deseru");
-                return GetDefaultDessertPlan(dessert, persons.Count);
-            }
 
             Console.WriteLine($"✅ Plan deseru: {plan.TotalPortions} porcji, {plan.DaysToSpread} dni");
             return plan;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Błąd planowania deseru: {ex.Message}");
+            Console.WriteLine($"❌ Błąd planowania deseru (po wszystkich retry): {ex.Message}");
             return GetDefaultDessertPlan(dessert, persons.Count);
+        }
+        finally
+        {
+            _rateLimiter.Release();
         }
     }
 

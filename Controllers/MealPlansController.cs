@@ -418,106 +418,124 @@ public class MealPlansController : ControllerBase
                         var freshPlan = _db.GetMealPlan(planId);
                         if (freshPlan?.Days != null)
                         {
-                            // Collect all entries
-                            var allEntries = new List<MealPlanEntry>();
+                            Console.WriteLine($"   🎯 NOWA FILOZOFIA: Per-day intelligent scaling - każda osoba dostanie DOKŁADNIE swoje kalorie");
+
+                            // Process day by day to calculate person-specific daily scaling factors
                             foreach (var day in freshPlan.Days)
                             {
-                                if (day.Entries != null)
+                                if (day.Entries == null || day.Entries.Count == 0) continue;
+
+                                // Calculate daily calorie sum from base recipes
+                                var dailyCaloriesSum = day.Entries
+                                    .Where(e => e.Recipe != null)
+                                    .Sum(e => e.Recipe!.Calories);
+
+                                var dayName = day.Date.ToString("yyyy-MM-dd");
+                                Console.WriteLine($"   📅 Dzień: {dayName} (suma bazowa: {dailyCaloriesSum} kcal)");
+
+                                if (dailyCaloriesSum == 0)
                                 {
-                                    allEntries.AddRange(day.Entries);
+                                    Console.WriteLine($"      ⚠️ Pomiń dzień bez kalorii");
+                                    continue;
                                 }
-                            }
 
-                            // Scale each entry - use MAX calories as baseline
-                            // Recipes from DB are designed for max person, others get scaled DOWN
-                            var maxCalories = persons.Max(p => p.TargetCalories);
-                            Console.WriteLine($"   📊 Bazowa kaloryczność (osoba z max): {maxCalories} kcal");
-
-                            foreach (var entry in allEntries)
-                            {
-                                if (entry.Recipe == null) continue;
-
-                                try
+                                // Process each person for this day
+                                foreach (var person in persons)
                                 {
-                                    var isDessert = entry.MealType == MealType.Deser;
+                                    // Calculate person-specific day scaling factor
+                                    var dayScalingFactor = (double)person.TargetCalories / dailyCaloriesSum;
 
-                                    if (isDessert)
+                                    var percentChange = (int)Math.Round((dayScalingFactor - 1.0) * 100);
+                                    var sign = percentChange >= 0 ? "+" : "";
+                                    Console.WriteLine($"      👤 {person.Name}: cel {person.TargetCalories} kcal → współczynnik {dayScalingFactor:F3} ({sign}{percentChange}%)");
+
+                                    // Scale each entry in this day for this person
+                                    foreach (var entry in day.Entries)
                                     {
-                                        var dessertService = new DessertPlanningService(apiKey, activeProvider.Model);
-                                        var dessertPlan = await dessertService.PlanDessertAsync(entry.Recipe, persons);
+                                        if (entry.Recipe == null) continue;
 
-                                        foreach (var person in persons)
+                                        try
                                         {
-                                            var scaledRecipe = new MealPlanRecipe
+                                            var isDessert = entry.MealType == MealType.Deser;
+
+                                            if (isDessert)
                                             {
-                                                MealPlanEntryId = entry.Id,
-                                                PersonId = person.Id,
-                                                BaseRecipeId = entry.Recipe.Id,
-                                                ScalingFactor = 1.0,
-                                                ScaledIngredients = new List<string> { entry.Recipe.Ingredients },
-                                                ScaledCalories = dessertPlan.PortionCalories,
-                                                ScaledProtein = entry.Recipe.Protein,
-                                                ScaledCarbs = entry.Recipe.Carbohydrates,
-                                                ScaledFat = entry.Recipe.Fat,
-                                                CreatedAt = DateTime.Now
-                                            };
-                                            _db.CreateMealPlanRecipe(scaledRecipe);
-                                        }
+                                                // Desserts use DessertPlanningService (same portion for everyone)
+                                                var dessertService = new DessertPlanningService(apiKey, activeProvider.Model);
+                                                var dessertPlan = await dessertService.PlanDessertAsync(entry.Recipe, persons);
 
-                                        Console.WriteLine($"   🍰 {entry.Recipe.Name}: przeskalowano jako deser");
-                                        scaledCount++;
-                                    }
-                                    else
-                                    {
-                                        var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
-
-                                        foreach (var person in persons)
-                                        {
-                                            var scalingFactor = (double)person.TargetCalories / maxCalories;
-                                            var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
-                                                entry.Recipe,
-                                                scalingFactor,
-                                                entry.MealType
-                                            );
-
-                                            if (scaledIngredients.Count == 0)
-                                            {
-                                                scaledIngredients = new List<string> { entry.Recipe.Ingredients };
+                                                var scaledRecipe = new MealPlanRecipe
+                                                {
+                                                    MealPlanEntryId = entry.Id,
+                                                    PersonId = person.Id,
+                                                    BaseRecipeId = entry.Recipe.Id,
+                                                    ScalingFactor = 1.0,
+                                                    ScaledIngredients = new List<string> { entry.Recipe.Ingredients },
+                                                    ScaledCalories = dessertPlan.PortionCalories,
+                                                    ScaledProtein = entry.Recipe.Protein,
+                                                    ScaledCarbs = entry.Recipe.Carbohydrates,
+                                                    ScaledFat = entry.Recipe.Fat,
+                                                    CreatedAt = DateTime.Now
+                                                };
+                                                _db.CreateMealPlanRecipe(scaledRecipe);
+                                                Console.WriteLine($"         🍰 {entry.Recipe.Name}: deser ({dessertPlan.PortionCalories} kcal)");
                                             }
-
-                                            var scaledCalories = (int)Math.Round(entry.Recipe.Calories * scalingFactor);
-
-                                            var scaledRecipe = new MealPlanRecipe
+                                            else
                                             {
-                                                MealPlanEntryId = entry.Id,
-                                                PersonId = person.Id,
-                                                BaseRecipeId = entry.Recipe.Id,
-                                                ScalingFactor = scalingFactor,
-                                                ScaledIngredients = scaledIngredients,
-                                                ScaledCalories = scaledCalories,
-                                                ScaledProtein = entry.Recipe.Protein * scalingFactor,
-                                                ScaledCarbs = entry.Recipe.Carbohydrates * scalingFactor,
-                                                ScaledFat = entry.Recipe.Fat * scalingFactor,
-                                                CreatedAt = DateTime.Now
-                                            };
-                                            _db.CreateMealPlanRecipe(scaledRecipe);
-                                        }
+                                                // Regular recipe - scale with day factor
+                                                var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
 
-                                        Console.WriteLine($"   ✓ {entry.Recipe.Name}: przeskalowano dla {persons.Count} osób");
-                                        scaledCount++;
+                                                var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
+                                                    entry.Recipe,
+                                                    dayScalingFactor,
+                                                    entry.MealType
+                                                );
+
+                                                if (scaledIngredients.Count == 0)
+                                                {
+                                                    Console.WriteLine($"         ⚠️ {entry.Recipe.Name}: fallback do bazowych składników");
+                                                    scaledIngredients = new List<string> { entry.Recipe.Ingredients };
+                                                }
+
+                                                var scaledCalories = (int)Math.Round(entry.Recipe.Calories * dayScalingFactor);
+
+                                                var scaledRecipe = new MealPlanRecipe
+                                                {
+                                                    MealPlanEntryId = entry.Id,
+                                                    PersonId = person.Id,
+                                                    BaseRecipeId = entry.Recipe.Id,
+                                                    ScalingFactor = dayScalingFactor,
+                                                    ScaledIngredients = scaledIngredients,
+                                                    ScaledCalories = scaledCalories,
+                                                    ScaledProtein = entry.Recipe.Protein * dayScalingFactor,
+                                                    ScaledCarbs = entry.Recipe.Carbohydrates * dayScalingFactor,
+                                                    ScaledFat = entry.Recipe.Fat * dayScalingFactor,
+                                                    CreatedAt = DateTime.Now
+                                                };
+                                                _db.CreateMealPlanRecipe(scaledRecipe);
+                                                Console.WriteLine($"         ✓ {entry.Recipe.Name}: {scaledCalories} kcal ({entry.Recipe.Calories}→{scaledCalories})");
+                                                scaledCount++;
+                                            }
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            var errorMsg = $"Błąd skalowania '{entry.Recipe.Name}' dla {person.Name}: {ex.Message}";
+                                            scalingErrors.Add(errorMsg);
+                                            Console.WriteLine($"         ❌ {errorMsg}");
+                                        }
                                     }
-                                }
-                                catch (Exception ex)
-                                {
-                                    var errorMsg = $"Błąd skalowania '{entry.Recipe.Name}': {ex.Message}";
-                                    scalingErrors.Add(errorMsg);
-                                    Console.WriteLine($"   ⚠️ {errorMsg}");
+
+                                    // Calculate and display daily sum for this person
+                                    var personDailySum = day.Entries
+                                        .Where(e => e.Recipe != null)
+                                        .Sum(e => (int)Math.Round(e.Recipe!.Calories * dayScalingFactor));
+                                    Console.WriteLine($"      ✅ {person.Name} suma dnia: {personDailySum} kcal (cel: {person.TargetCalories})");
                                 }
                             }
 
                             if (scaledCount > 0)
                             {
-                                Console.WriteLine($"✅ Automatyczne skalowanie zakończone: {scaledCount}/{allEntries.Count} przepisów");
+                                Console.WriteLine($"✅ Automatyczne skalowanie zakończone: {scaledCount} przepisów dla {persons.Count} osób");
                             }
                         }
                     }

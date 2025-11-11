@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Mscc.GenerativeAI;
+using Polly;
+using Polly.Retry;
 using RecipesAIHelper.Models;
 
 namespace RecipesAIHelper.Services;
@@ -13,12 +15,29 @@ public class RecipeScalingService
 {
     private readonly GoogleAI _genAi;
     private readonly GenerativeModel _model;
+    private readonly AsyncRetryPolicy _retryPolicy;
+    private static readonly SemaphoreSlim _rateLimiter = new(1, 1); // Rate limiting
 
     public RecipeScalingService(string apiKey, string modelName = "gemini-2.5-flash")
     {
         _genAi = new GoogleAI(apiKey);
         _model = _genAi.GenerativeModel(model: modelName);
         _model.Timeout = TimeSpan.FromMinutes(2);
+
+        // Retry policy: 3 attempts with exponential backoff + jitter
+        _retryPolicy = Policy
+            .Handle<Exception>(ex =>
+                ex.Message.Contains("503") ||
+                ex.Message.Contains("overloaded") ||
+                ex.Message.Contains("UNAVAILABLE") ||
+                ex.Message.Contains("RESOURCE_EXHAUSTED"))
+            .WaitAndRetryAsync(
+                retryCount: 3,
+                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000)),
+                onRetry: (exception, timeSpan, retryCount, context) =>
+                {
+                    Console.WriteLine($"   ⚠️ Retry {retryCount}/3 po {timeSpan.TotalSeconds:F1}s: {exception.Message}");
+                });
 
         Console.WriteLine($"✅ RecipeScalingService zainicjalizowany ({modelName})");
     }
@@ -31,45 +50,81 @@ public class RecipeScalingService
         double scalingFactor,
         MealType mealType)
     {
+        // Rate limiting: wait for semaphore + 2s delay
+        await _rateLimiter.WaitAsync();
         try
         {
+            await Task.Delay(2000); // 2 second delay between AI calls
+
             Console.WriteLine($"📊 Skalowanie składników przepisu '{baseRecipe.Name}' (współczynnik: {scalingFactor:F2})...");
 
-            var prompt = BuildScalingPrompt(baseRecipe, scalingFactor, mealType);
-            var response = await _model.GenerateContent(prompt);
-            var responseText = response?.Text?.Trim() ?? "";
-
-            if (string.IsNullOrEmpty(responseText))
+            var result = await _retryPolicy.ExecuteAsync(async () =>
             {
-                Console.WriteLine("❌ Pusta odpowiedź od AI");
-                return new List<string>();
-            }
+                var prompt = BuildScalingPrompt(baseRecipe, scalingFactor, mealType);
+                var response = await _model.GenerateContent(prompt);
+                var responseText = response?.Text?.Trim() ?? "";
 
-            // Remove markdown code blocks
-            var jsonResponse = responseText
-                .Replace("```json", "")
-                .Replace("```", "")
-                .Trim();
+                // Debug logging
+                if (string.IsNullOrEmpty(responseText))
+                {
+                    Console.WriteLine("   🔍 DEBUG: Pusta odpowiedź od AI");
+                    throw new Exception("Empty AI response");
+                }
 
-            // Parse JSON response
-            var result = JsonSerializer.Deserialize<ScalingResponse>(jsonResponse, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
+                Console.WriteLine($"   🔍 DEBUG: Odpowiedź AI ({responseText.Length} znaków)");
+                if (responseText.Length < 500)
+                {
+                    Console.WriteLine($"   🔍 DEBUG: Surowa odpowiedź: {responseText}");
+                }
+
+                // Remove markdown code blocks
+                var jsonResponse = responseText
+                    .Replace("```json", "")
+                    .Replace("```", "")
+                    .Trim();
+
+                // Parse JSON response
+                ScalingResponse? parsed;
+                try
+                {
+                    parsed = JsonSerializer.Deserialize<ScalingResponse>(jsonResponse, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch (JsonException jsonEx)
+                {
+                    Console.WriteLine($"   🔍 DEBUG: Błąd parsowania JSON: {jsonEx.Message}");
+                    Console.WriteLine($"   🔍 DEBUG: Próbowano parsować: {jsonResponse.Substring(0, Math.Min(200, jsonResponse.Length))}...");
+
+                    // Save to file for debugging
+                    var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"scaling_error_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+                    File.WriteAllText(debugPath, $"Recipe: {baseRecipe.Name}\nFactor: {scalingFactor}\n\nResponse:\n{responseText}");
+                    Console.WriteLine($"   🔍 DEBUG: Zapisano pełną odpowiedź do: {debugPath}");
+
+                    throw new Exception($"JSON parse error: {jsonEx.Message}");
+                }
+
+                if (parsed?.ScaledIngredients == null || parsed.ScaledIngredients.Count == 0)
+                {
+                    Console.WriteLine("   🔍 DEBUG: AI zwróciło poprawny JSON, ale brak składników");
+                    throw new Exception("No ingredients in AI response");
+                }
+
+                return parsed;
             });
-
-            if (result?.ScaledIngredients == null || result.ScaledIngredients.Count == 0)
-            {
-                Console.WriteLine("❌ AI nie zwróciło przeskalowanych składników");
-                return new List<string>();
-            }
 
             Console.WriteLine($"✅ Przeskalowano {result.ScaledIngredients.Count} składników");
             return result.ScaledIngredients;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Błąd skalowania składników: {ex.Message}");
+            Console.WriteLine($"❌ Błąd skalowania składników (po wszystkich retry): {ex.Message}");
             return new List<string>();
+        }
+        finally
+        {
+            _rateLimiter.Release();
         }
     }
 
