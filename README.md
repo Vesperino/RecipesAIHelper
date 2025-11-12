@@ -54,7 +54,7 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - **Servings tracking**: Opcjonalne pole "Liczba porcji: X"
 
 **3. Upload przez UI:**
-<img width="3840" height="1080" alt="image" src="https://github.com/user-attachments/assets/fe6df17f-fed8-4235-8d34-f31554f321f1" />
+<img width="1351" height="906" alt="image" src="https://github.com/user-attachments/assets/9ee0e81e-ad01-49f1-8dec-937171e6cb30" />
 
 
 - **Folder source**: Wybór plików z lokalnego folderu (PDF)
