@@ -135,6 +135,8 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 <img width="827" height="271" alt="image" src="https://github.com/user-attachments/assets/c6c47c2f-8f69-4be4-94df-0a81dab1c332" />
 <img width="1307" height="786" alt="image" src="https://github.com/user-attachments/assets/044e3ed5-ef34-4962-bbf7-0521c6b846da" />
 <img width="1902" height="369" alt="image" src="https://github.com/user-attachments/assets/532cb2bc-2b69-43b1-aac2-15bc61b3c6e0" />
+<img width="1205" height="842" alt="image" src="https://github.com/user-attachments/assets/31943e33-56c3-432e-8609-fb544dfbf9c6" />
+<img width="1915" height="679" alt="image" src="https://github.com/user-attachments/assets/b8fa652e-2961-4302-a0d0-d51800293c98" />
 
 
 #### Tworzenie jadłospisów:
