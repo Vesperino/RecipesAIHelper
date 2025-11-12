@@ -18,6 +18,7 @@ public class MealPlan
 
     // Navigation properties (not stored in DB)
     public List<MealPlanDay>? Days { get; set; }
+    public List<MealPlanPerson>? Persons { get; set; }
 }
 
 /// <summary>
@@ -69,6 +70,9 @@ public class MealPlanEntry
     public MealPlanDay? MealPlanDay { get; set; }
 
     public Recipe? Recipe { get; set; }
+
+    // Scaled recipes for multi-person meal plans
+    public List<MealPlanRecipe>? ScaledRecipes { get; set; }
 }
 
 /// <summary>
@@ -107,4 +111,63 @@ public class ShoppingList
         get => string.IsNullOrEmpty(ItemsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<List<ShoppingListItem>>(ItemsJson);
         set => ItemsJson = value != null ? System.Text.Json.JsonSerializer.Serialize(value) : string.Empty;
     }
+}
+
+/// <summary>
+/// Person in a meal plan with their calorie target
+/// </summary>
+public class MealPlanPerson
+{
+    public int Id { get; set; }
+    public int MealPlanId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int TargetCalories { get; set; }
+    public int SortOrder { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    // Navigation properties
+    [JsonIgnore]
+    public MealPlan? MealPlan { get; set; }
+}
+
+/// <summary>
+/// Scaled recipe for a specific person in a meal plan
+/// </summary>
+public class MealPlanRecipe
+{
+    public int Id { get; set; }
+    public int MealPlanEntryId { get; set; }
+    public int PersonId { get; set; }
+    public int BaseRecipeId { get; set; }
+
+    /// <summary>
+    /// Scaling factor applied to the recipe (e.g., 1.2 = +20%)
+    /// </summary>
+    public double ScalingFactor { get; set; }
+
+    // Scaled ingredient list (stored as JSON in database)
+    [JsonIgnore]
+    public string ScaledIngredientsJson { get; set; } = string.Empty;
+
+    // Computed property for scaled ingredients
+    public List<string>? ScaledIngredients
+    {
+        get => string.IsNullOrEmpty(ScaledIngredientsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<List<string>>(ScaledIngredientsJson);
+        set => ScaledIngredientsJson = value != null ? System.Text.Json.JsonSerializer.Serialize(value) : string.Empty;
+    }
+
+    // Scaled nutrition values
+    public int ScaledCalories { get; set; }
+    public double ScaledProtein { get; set; }
+    public double ScaledCarbs { get; set; }
+    public double ScaledFat { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    // Navigation properties
+    [JsonIgnore]
+    public MealPlanEntry? MealPlanEntry { get; set; }
+
+    public MealPlanPerson? Person { get; set; }
+    public Recipe? BaseRecipe { get; set; }
 }

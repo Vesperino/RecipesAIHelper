@@ -115,6 +115,36 @@ public class PrintController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Generate printable HTML for meal plan for specific person (with scaled recipes)
+    /// GET /api/print/meal-plan/{planId}/person/{personId}
+    /// </summary>
+    [HttpGet("meal-plan/{planId}/person/{personId}")]
+    public ActionResult GetMealPlanPersonPrintView(int planId, int personId)
+    {
+        try
+        {
+            var plan = _db.GetMealPlan(planId);
+            if (plan == null)
+                return NotFound(new { error = "Meal plan not found" });
+
+            if (plan.Days == null || plan.Days.Count == 0)
+                return BadRequest(new { error = "Meal plan has no days" });
+
+            // Get person
+            var person = _db.GetMealPlanPersons(planId).FirstOrDefault(p => p.Id == personId);
+            if (person == null)
+                return NotFound(new { error = "Person not found" });
+
+            var html = GenerateMealPlanPersonHtml(plan, person);
+            return Content(html, "text/html");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
     // HTML Generation Methods
 
     private string GenerateMealPlanTableHtml(Models.MealPlan plan)
@@ -126,10 +156,13 @@ public class PrintController : ControllerBase
         sb.AppendLine("    <meta charset='utf-8'>");
         sb.AppendLine($"    <title>{plan.Name}</title>");
         sb.AppendLine("    <style>");
-        sb.AppendLine("        @media print { @page { size: landscape; margin: 1cm; } }");
-        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; }");
-        sb.AppendLine("        h1 { text-align: center; margin-bottom: 10px; }");
-        sb.AppendLine("        .date-range { text-align: center; color: #666; margin-bottom: 20px; }");
+        sb.AppendLine("        @media print { ");
+        sb.AppendLine("            @page { size: landscape; margin: 1cm; }");
+        sb.AppendLine("            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; color: #1a3a6b; }");
+        sb.AppendLine("        h1 { text-align: center; margin-bottom: 10px; color: #2196F3; }");
+        sb.AppendLine("        .date-range { text-align: center; color: #5a5a8a; margin-bottom: 20px; }");
         sb.AppendLine("        table { width: 100%; border-collapse: collapse; }");
         sb.AppendLine("        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }");
         sb.AppendLine("        th { background-color: #4CAF50; color: white; font-weight: bold; }");
@@ -153,32 +186,44 @@ public class PrintController : ControllerBase
         sb.AppendLine("        </tr>");
         sb.AppendLine("        <tr>");
 
-        // Group days by week
-        var sortedDays = plan.Days.OrderBy(d => d.Date).ToList();
-        foreach (var day in sortedDays)
+        // Create a dictionary for quick lookup of days by DayOfWeek
+        var daysByDayOfWeek = plan.Days.ToDictionary(d => d.DayOfWeek);
+
+        // Iterate through all 7 days of the week (0 = Monday, 6 = Sunday)
+        for (int dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++)
         {
             sb.AppendLine("            <td>");
-            sb.AppendLine($"                <div style='font-weight: bold; margin-bottom: 8px;'>{day.Date:dd.MM}</div>");
 
-            if (day.Entries != null && day.Entries.Any())
+            if (daysByDayOfWeek.TryGetValue(dayOfWeek, out var day))
             {
-                var groupedByMealType = day.Entries
-                    .OrderBy(e => e.MealType)
-                    .GroupBy(e => e.MealType);
+                // Day exists in plan - show date and recipes
+                sb.AppendLine($"                <div style='font-weight: bold; margin-bottom: 8px;'>{day.Date:dd.MM}</div>");
 
-                foreach (var group in groupedByMealType)
+                if (day.Entries != null && day.Entries.Any())
                 {
-                    foreach (var entry in group)
+                    var groupedByMealType = day.Entries
+                        .OrderBy(e => e.MealType)
+                        .GroupBy(e => e.MealType);
+
+                    foreach (var group in groupedByMealType)
                     {
-                        if (entry.Recipe != null)
+                        foreach (var entry in group)
                         {
-                            sb.AppendLine($"                <div class='recipe-item'>");
-                            sb.AppendLine($"                    <div class='meal-type'>{GetMealTypeName(entry.MealType)}</div>");
-                            sb.AppendLine($"                    {entry.Recipe.Name}");
-                            sb.AppendLine($"                </div>");
+                            if (entry.Recipe != null)
+                            {
+                                sb.AppendLine($"                <div class='recipe-item'>");
+                                sb.AppendLine($"                    <div class='meal-type'>{GetMealTypeName(entry.MealType)}</div>");
+                                sb.AppendLine($"                    {entry.Recipe.Name}");
+                                sb.AppendLine($"                </div>");
+                            }
                         }
                     }
                 }
+            }
+            else
+            {
+                // Day doesn't exist in plan - show empty cell
+                sb.AppendLine("                &nbsp;");
             }
 
             sb.AppendLine("            </td>");
@@ -201,8 +246,12 @@ public class PrintController : ControllerBase
         sb.AppendLine("    <meta charset='utf-8'>");
         sb.AppendLine($"    <title>{plan.Name} - Pełne Przepisy</title>");
         sb.AppendLine("    <style>");
-        sb.AppendLine("        @media print { @page { margin: 1.5cm; } .recipe-page { page-break-after: always; } }");
-        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; }");
+        sb.AppendLine("        @media print { ");
+        sb.AppendLine("            @page { margin: 1.5cm; }");
+        sb.AppendLine("            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }");
+        sb.AppendLine("            .recipe-page { page-break-after: always; }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; color: #1a3a6b; }");
         sb.AppendLine("        .plan-header { text-align: center; margin-bottom: 30px; }");
         sb.AppendLine("        .recipe-page { margin-bottom: 40px; }");
         sb.AppendLine("        .recipe-header { background: #4CAF50; color: white; padding: 15px; margin-bottom: 20px; }");
@@ -211,11 +260,11 @@ public class PrintController : ControllerBase
         sb.AppendLine("        .section { margin-bottom: 20px; }");
         sb.AppendLine("        .section-title { font-size: 18px; font-weight: bold; color: #2196F3; margin-bottom: 10px; border-bottom: 2px solid #2196F3; }");
         sb.AppendLine("        .nutrition { display: flex; gap: 20px; flex-wrap: wrap; }");
-        sb.AppendLine("        .nutrition-item { background: #f0f0f0; padding: 10px; border-radius: 5px; min-width: 120px; }");
-        sb.AppendLine("        .nutrition-label { font-size: 12px; color: #666; }");
+        sb.AppendLine("        .nutrition-item { background: #e8f5e9; padding: 10px; border-radius: 5px; min-width: 120px; }");
+        sb.AppendLine("        .nutrition-label { font-size: 12px; color: #5a5a8a; }");
         sb.AppendLine("        .nutrition-value { font-size: 20px; font-weight: bold; color: #4CAF50; }");
-        sb.AppendLine("        .ingredients { line-height: 1.8; }");
-        sb.AppendLine("        .instructions { line-height: 1.8; white-space: pre-wrap; }");
+        sb.AppendLine("        .ingredients { line-height: 1.8; color: #2d5a2d; }");
+        sb.AppendLine("        .instructions { line-height: 1.8; white-space: pre-wrap; color: #2d4a6d; }");
         sb.AppendLine("    </style>");
         sb.AppendLine("</head>");
         sb.AppendLine("<body>");
@@ -262,19 +311,22 @@ public class PrintController : ControllerBase
         sb.AppendLine("    <meta charset='utf-8'>");
         sb.AppendLine($"    <title>{recipe.Name}</title>");
         sb.AppendLine("    <style>");
-        sb.AppendLine("        @media print { @page { margin: 1.5cm; } }");
-        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }");
+        sb.AppendLine("        @media print { ");
+        sb.AppendLine("            @page { margin: 1.5cm; }");
+        sb.AppendLine("            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #1a3a6b; }");
         sb.AppendLine("        .recipe-header { background: #4CAF50; color: white; padding: 20px; margin: -20px -20px 30px -20px; }");
         sb.AppendLine("        .recipe-title { font-size: 28px; font-weight: bold; margin: 0; }");
         sb.AppendLine("        .recipe-meta { font-size: 14px; margin-top: 10px; }");
         sb.AppendLine("        .section { margin-bottom: 25px; }");
         sb.AppendLine("        .section-title { font-size: 20px; font-weight: bold; color: #2196F3; margin-bottom: 15px; border-bottom: 2px solid #2196F3; padding-bottom: 5px; }");
         sb.AppendLine("        .nutrition { display: flex; gap: 20px; flex-wrap: wrap; }");
-        sb.AppendLine("        .nutrition-item { background: #f0f0f0; padding: 15px; border-radius: 8px; min-width: 130px; text-align: center; }");
-        sb.AppendLine("        .nutrition-label { font-size: 13px; color: #666; text-transform: uppercase; }");
+        sb.AppendLine("        .nutrition-item { background: #e8f5e9; padding: 15px; border-radius: 8px; min-width: 130px; text-align: center; }");
+        sb.AppendLine("        .nutrition-label { font-size: 13px; color: #5a5a8a; text-transform: uppercase; }");
         sb.AppendLine("        .nutrition-value { font-size: 24px; font-weight: bold; color: #4CAF50; margin-top: 5px; }");
-        sb.AppendLine("        .ingredients { line-height: 2; white-space: pre-wrap; }");
-        sb.AppendLine("        .instructions { line-height: 1.8; white-space: pre-wrap; }");
+        sb.AppendLine("        .ingredients { line-height: 2; white-space: pre-wrap; color: #2d5a2d; }");
+        sb.AppendLine("        .instructions { line-height: 1.8; white-space: pre-wrap; color: #2d4a6d; }");
         sb.AppendLine("    </style>");
         sb.AppendLine("</head>");
         sb.AppendLine("<body>");
@@ -357,16 +409,19 @@ public class PrintController : ControllerBase
         sb.AppendLine("    <meta charset='utf-8'>");
         sb.AppendLine($"    <title>Lista Zakupowa - {planName}</title>");
         sb.AppendLine("    <style>");
-        sb.AppendLine("        @media print { @page { margin: 1.5cm; } }");
-        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }");
+        sb.AppendLine("        @media print { ");
+        sb.AppendLine("            @page { margin: 1.5cm; }");
+        sb.AppendLine("            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #1a3a6b; }");
         sb.AppendLine("        h1 { text-align: center; color: #4CAF50; margin-bottom: 10px; }");
-        sb.AppendLine("        .subtitle { text-align: center; color: #666; margin-bottom: 30px; }");
+        sb.AppendLine("        .subtitle { text-align: center; color: #5a5a8a; margin-bottom: 30px; }");
         sb.AppendLine("        .category { margin-bottom: 30px; }");
         sb.AppendLine("        .category-title { font-size: 20px; font-weight: bold; color: #2196F3; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #2196F3; }");
-        sb.AppendLine("        .item { display: flex; padding: 12px; border-bottom: 1px solid #eee; }");
+        sb.AppendLine("        .item { display: flex; padding: 12px; border-bottom: 1px solid #b3d9ff; }");
         sb.AppendLine("        .item:last-child { border-bottom: none; }");
         sb.AppendLine("        .checkbox { width: 30px; height: 30px; border: 2px solid #4CAF50; border-radius: 4px; margin-right: 15px; flex-shrink: 0; }");
-        sb.AppendLine("        .item-name { flex: 1; font-size: 16px; }");
+        sb.AppendLine("        .item-name { flex: 1; font-size: 16px; color: #2d4a6d; }");
         sb.AppendLine("        .item-quantity { font-weight: bold; color: #4CAF50; min-width: 100px; text-align: right; }");
         sb.AppendLine("    </style>");
         sb.AppendLine("</head>");
@@ -423,5 +478,207 @@ public class PrintController : ControllerBase
         if (string.IsNullOrEmpty(text))
             return text;
         return char.ToUpper(text[0]) + text.Substring(1);
+    }
+
+    private string GenerateMealPlanPersonHtml(Models.MealPlan plan, Models.MealPlanPerson person)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html>");
+        sb.AppendLine("<head>");
+        sb.AppendLine("    <meta charset='utf-8'>");
+        sb.AppendLine($"    <title>{plan.Name} - {person.Name}</title>");
+        sb.AppendLine("    <style>");
+        sb.AppendLine("        @media print { ");
+        sb.AppendLine("            @page { margin: 1.5cm; }");
+        sb.AppendLine("            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }");
+        sb.AppendLine("            .recipe-section { page-break-inside: avoid; }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; color: #1a3a6b; }");
+        sb.AppendLine("        .plan-header { text-align: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; }");
+        sb.AppendLine("        .plan-title { font-size: 32px; font-weight: bold; margin: 0 0 10px 0; }");
+        sb.AppendLine("        .person-info { font-size: 18px; margin: 5px 0; }");
+        sb.AppendLine("        .date-range { font-size: 14px; opacity: 0.9; }");
+        sb.AppendLine("        .day-section { margin-bottom: 40px; border: 2px solid #b3d9ff; border-radius: 8px; overflow: hidden; }");
+        sb.AppendLine("        .day-header { background: #e3f2fd; padding: 15px 20px; border-bottom: 2px solid #90caf9; }");
+        sb.AppendLine("        .day-title { font-size: 22px; font-weight: bold; color: #1565c0; margin: 0; }");
+        sb.AppendLine("        .day-date { font-size: 14px; color: #5a5a8a; margin-top: 5px; }");
+        sb.AppendLine("        .recipe-section { padding: 20px; border-bottom: 1px solid #b3d9ff; }");
+        sb.AppendLine("        .recipe-section:last-child { border-bottom: none; }");
+        sb.AppendLine("        .recipe-header { background: #4CAF50; color: white; padding: 12px 15px; margin: -20px -20px 15px -20px; }");
+        sb.AppendLine("        .recipe-title { font-size: 20px; font-weight: bold; margin: 0; }");
+        sb.AppendLine("        .recipe-meta { font-size: 13px; margin-top: 5px; opacity: 0.9; }");
+        sb.AppendLine("        .scaling-badge { display: inline-block; background: #FF9800; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-left: 10px; }");
+        sb.AppendLine("        .section { margin-bottom: 20px; }");
+        sb.AppendLine("        .section-title { font-size: 16px; font-weight: bold; color: #2196F3; margin-bottom: 10px; border-bottom: 2px solid #2196F3; padding-bottom: 5px; }");
+        sb.AppendLine("        .nutrition { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }");
+        sb.AppendLine("        .nutrition-item { background: #e8f5e9; padding: 12px; border-radius: 6px; min-width: 100px; text-align: center; }");
+        sb.AppendLine("        .nutrition-label { font-size: 11px; color: #5a5a8a; text-transform: uppercase; }");
+        sb.AppendLine("        .nutrition-value { font-size: 20px; font-weight: bold; color: #4CAF50; margin-top: 5px; }");
+        sb.AppendLine("        .ingredients { line-height: 1.8; white-space: pre-wrap; color: #2d5a2d; }");
+        sb.AppendLine("        .instructions { line-height: 1.6; white-space: pre-wrap; color: #2d4a6d; }");
+        sb.AppendLine("    </style>");
+        sb.AppendLine("</head>");
+        sb.AppendLine("<body>");
+
+        // Header
+        sb.AppendLine("    <div class='plan-header'>");
+        sb.AppendLine($"        <div class='plan-title'>{plan.Name}</div>");
+        sb.AppendLine($"        <div class='person-info'>👤 {person.Name} | 🎯 {person.TargetCalories} kcal/dzień</div>");
+        sb.AppendLine($"        <div class='date-range'>{plan.StartDate:dd.MM.yyyy} - {plan.EndDate:dd.MM.yyyy}</div>");
+        sb.AppendLine("    </div>");
+
+        // Iterate through days
+        if (plan.Days != null)
+        {
+            foreach (var day in plan.Days.OrderBy(d => d.Date))
+            {
+                sb.AppendLine("    <div class='day-section'>");
+                sb.AppendLine("        <div class='day-header'>");
+                sb.AppendLine($"            <div class='day-title'>{GetDayOfWeekName(day.DayOfWeek)}</div>");
+                sb.AppendLine($"            <div class='day-date'>{day.Date:dd.MM.yyyy}</div>");
+                sb.AppendLine("        </div>");
+
+                if (day.Entries != null && day.Entries.Count > 0)
+                {
+                    foreach (var entry in day.Entries.OrderBy(e => e.MealType))
+                    {
+                        if (entry.Recipe == null) continue;
+
+                        // Find scaled recipe for this person
+                        var scaledRecipe = entry.ScaledRecipes?.FirstOrDefault(sr => sr.PersonId == person.Id);
+
+                        sb.AppendLine("        <div class='recipe-section'>");
+                        sb.AppendLine("            <div class='recipe-header'>");
+                        sb.AppendLine($"                <div class='recipe-title'>");
+                        sb.AppendLine($"                    {entry.Recipe.Name}");
+
+                        if (scaledRecipe != null && scaledRecipe.ScalingFactor != 1.0)
+                        {
+                            var percentage = (int)Math.Round((scaledRecipe.ScalingFactor - 1.0) * 100);
+                            var sign = percentage > 0 ? "+" : "";
+                            sb.AppendLine($"                    <span class='scaling-badge'>Przeskalowano {sign}{percentage}%</span>");
+                        }
+
+                        sb.AppendLine("                </div>");
+                        sb.AppendLine($"                <div class='recipe-meta'>{GetMealTypeName(entry.MealType)}");
+                        if (entry.Recipe.Servings.HasValue)
+                        {
+                            sb.AppendLine($" • {entry.Recipe.Servings} porcji");
+                        }
+                        sb.AppendLine("</div>");
+                        sb.AppendLine("            </div>");
+
+                        // Nutrition (scaled if available)
+                        sb.AppendLine("            <div class='section'>");
+                        sb.AppendLine("                <div class='section-title'>🔥 Wartości odżywcze (Twoja porcja)</div>");
+                        sb.AppendLine("                <div class='nutrition'>");
+
+                        if (scaledRecipe != null)
+                        {
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Kalorie</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledCalories}</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Białko</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledProtein:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Węglowodany</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledCarbs:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Tłuszcze</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{scaledRecipe.ScaledFat:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                        }
+                        else
+                        {
+                            // Fallback to base recipe
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Kalorie</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Calories}</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Białko</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Protein:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Węglowodany</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Carbohydrates:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                            sb.AppendLine("                    <div class='nutrition-item'>");
+                            sb.AppendLine("                        <div class='nutrition-label'>Tłuszcze</div>");
+                            sb.AppendLine($"                        <div class='nutrition-value'>{entry.Recipe.Fat:F1}g</div>");
+                            sb.AppendLine("                    </div>");
+                        }
+
+                        sb.AppendLine("                </div>");
+                        sb.AppendLine("            </div>");
+
+                        // Ingredients (scaled if available)
+                        if (!string.IsNullOrEmpty(entry.Recipe.Ingredients))
+                        {
+                            sb.AppendLine("            <div class='section'>");
+                            sb.AppendLine("                <div class='section-title'>🥘 Składniki (Twoja porcja)</div>");
+
+                            if (scaledRecipe?.ScaledIngredients != null && scaledRecipe.ScaledIngredients.Count > 0)
+                            {
+                                // Use scaled ingredients
+                                var scaledIngredientsText = string.Join("\n", scaledRecipe.ScaledIngredients);
+                                sb.AppendLine($"                <div class='ingredients'>{System.Security.SecurityElement.Escape(scaledIngredientsText)}</div>");
+                            }
+                            else
+                            {
+                                // Fallback to base ingredients
+                                sb.AppendLine($"                <div class='ingredients'>{System.Security.SecurityElement.Escape(entry.Recipe.Ingredients)}</div>");
+                            }
+
+                            sb.AppendLine("            </div>");
+                        }
+
+                        // Instructions (always from base recipe)
+                        if (!string.IsNullOrEmpty(entry.Recipe.Instructions))
+                        {
+                            sb.AppendLine("            <div class='section'>");
+                            sb.AppendLine("                <div class='section-title'>👨‍🍳 Sposób przygotowania</div>");
+                            sb.AppendLine($"                <div class='instructions'>{System.Security.SecurityElement.Escape(entry.Recipe.Instructions)}</div>");
+                            sb.AppendLine("            </div>");
+                        }
+
+                        sb.AppendLine("        </div>");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("        <div class='recipe-section'>");
+                    sb.AppendLine("            <p style='text-align: center; color: #999;'>Brak przepisów na ten dzień</p>");
+                    sb.AppendLine("        </div>");
+                }
+
+                sb.AppendLine("    </div>");
+            }
+        }
+
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+
+        return sb.ToString();
+    }
+
+    private string GetDayOfWeekName(int dayOfWeek)
+    {
+        return dayOfWeek switch
+        {
+            0 => "Poniedziałek",
+            1 => "Wtorek",
+            2 => "Środa",
+            3 => "Czwartek",
+            4 => "Piątek",
+            5 => "Sobota",
+            6 => "Niedziela",
+            _ => $"Dzień {dayOfWeek}"
+        };
     }
 }

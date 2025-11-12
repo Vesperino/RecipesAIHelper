@@ -54,11 +54,17 @@ public class Recipe
     // Meal category
     public MealType MealType { get; set; }
 
+    // Alternate meal category (e.g., can be both Sniadanie and Kolacja)
+    public MealType? AlternateMealType { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     // Image paths
     public string? ImagePath { get; set; }
     public string? ImageUrl { get; set; }
+
+    // Source PDF file for regeneration
+    public string? SourcePdfFile { get; set; }
 }
 
 public class NutritionVariant
@@ -82,9 +88,9 @@ public class NutritionVariant
 
 public enum MealType
 {
-    Sniadanie,    // Śniadanie
-    Obiad,        // Obiad
-    Kolacja,      // Kolacja
-    Deser,        // Deser
-    Napoj         // Napój
+    Sniadanie = 0,    // Śniadanie
+    Deser = 1,        // Deser (was 3, migrated to 1)
+    Obiad = 2,        // Obiad (was 1, migrated to 2)
+    Kolacja = 3,      // Kolacja (was 2, migrated to 3)
+    Napoj = 4         // Napój
 }
