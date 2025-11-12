@@ -1,4 +1,4 @@
-# Recipe AI Helper
+<img width="1487" height="1047" alt="image" src="https://github.com/user-attachments/assets/5646047c-d55d-4b38-9215-8fb612fb9c6c" /># Recipe AI Helper
 
 Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarnymi z wykorzystaniem AI (OpenAI GPT i Google Gemini). System oferuje pełną automatyzację od ekstrakcji przepisów z PDF, przez tworzenie jadłospisów, aż po generowanie list zakupowych i inteligentne skalowanie porcji.
 
@@ -13,6 +13,7 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - **Retry mechanizm**: Automatyczne ponowne próby z eksponencjalnym backoffem (Polly)
 
 ### 📄 Ekstrakcja przepisów z PDF i obrazów
+<img width="1407" height="1031" alt="image" src="https://github.com/user-attachments/assets/25d3a839-2adb-48fa-9fa1-44493a3ebf78" />
 
 #### Dwie ścieżki przetwarzania:
 1. **Direct PDF upload** (Gemini) - niższe koszty, szybsze przetwarzanie
@@ -33,6 +34,8 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 #### Mechanizmy ochrony jakości:
 
 **1. Sprawdzanie duplikatów:**
+<img width="604" height="168" alt="image" src="https://github.com/user-attachments/assets/de3f9405-f73e-4ae4-aaf2-632cd63a567f" />
+<img width="429" height="267" alt="image" src="https://github.com/user-attachments/assets/5da37a16-2b97-4f1b-a8d4-4c3b594f71cc" />
 - **Exact match**: Case-insensitive porównanie nazw w bazie
 - **Fuzzy matching**: Levenshtein distance similarity >80%
 - **AI context**: Ostatnie 10 przepisów przekazywane do AI jako kontekst
