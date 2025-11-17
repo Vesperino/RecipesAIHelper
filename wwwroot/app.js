@@ -97,8 +97,7 @@ function appData() {
 
         // AI Model Settings for Meal Planning
         aiModelSettings: {
-            recipeScaling: { model: 'gemini-2.5-flash' },
-            dessertPlanning: { model: 'gemini-2.5-flash' }
+            recipeScaling: { model: 'gemini-2.5-flash' }
         },
         isExportingToTodoist: false,
 
@@ -1374,10 +1373,6 @@ function appData() {
                     payload.recipeScaling = {
                         model: this.aiModelSettings.recipeScaling.model
                     };
-                } else if (settingType === 'dessertPlanning') {
-                    payload.dessertPlanning = {
-                        model: this.aiModelSettings.dessertPlanning.model
-                    };
                 }
 
                 const response = await fetch('/api/aimodelsettings', {
@@ -1672,6 +1667,12 @@ function appData() {
 
             if (!entry) return;
 
+            // Check if recipe has DoNotScale flag
+            if (entry.recipe?.doNotScale) {
+                this.showNotification('Ten przepis ma stałą porcję i nie może być skalowany', 'warning');
+                return;
+            }
+
             entry.scaling = true;
 
             try {
@@ -1733,6 +1734,37 @@ function appData() {
             }
         },
 
+        // Quick add recipe to specific day without drag-and-drop
+        async addRecipeToDayQuick(recipe, dayId) {
+            if (!this.selectedPlan || !dayId) return;
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${dayId}/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipeId: recipe.id,
+                        mealType: recipe.mealType,
+                        order: 0
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to add recipe to day');
+
+                // Find day name for notification
+                const day = this.selectedPlan.days.find(d => d.id === dayId);
+                const dayName = day ? this.getDayOfWeekName(day.dayOfWeek) : 'dzień';
+
+                this.showNotification(`Dodano "${recipe.name}" do ${dayName}`, 'success');
+
+                // Reload the selected plan to show the change
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error adding recipe to day:', error);
+                this.showNotification('Błąd dodawania przepisu: ' + error.message, 'error');
+            }
+        },
+
         async removeRecipeFromDay(dayId, entryId) {
             try {
                 const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${dayId}/entries/${entryId}`, {
@@ -1748,6 +1780,200 @@ function appData() {
             } catch (error) {
                 console.error('Error removing recipe:', error);
                 this.showNotification('Błąd usuwania przepisu: ' + error.message, 'error');
+            }
+        },
+
+        async swapDays(day1Id, day2Id) {
+            if (!this.selectedPlan || !day1Id || !day2Id) return;
+
+            try {
+                // Get both days
+                const day1 = this.selectedPlan.days.find(d => d.id === day1Id);
+                const day2 = this.selectedPlan.days.find(d => d.id === day2Id);
+
+                if (!day1 || !day2) {
+                    this.showNotification('Nie można znaleźć dni do zamiany', 'error');
+                    return;
+                }
+
+                const day1Name = this.getDayOfWeekName(day1.dayOfWeek);
+                const day2Name = this.getDayOfWeekName(day2.dayOfWeek);
+
+                // Get all entries from both days
+                const day1Entries = day1.entries || [];
+                const day2Entries = day2.entries || [];
+
+                // Delete all entries from both days
+                for (const entry of day1Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries/${entry.id}`, {
+                        method: 'DELETE'
+                    });
+                }
+
+                for (const entry of day2Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries/${entry.id}`, {
+                        method: 'DELETE'
+                    });
+                }
+
+                // Add day1's entries to day2
+                for (const entry of day1Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            recipeId: entry.recipe.id,
+                            mealType: entry.mealType,
+                            order: entry.order
+                        })
+                    });
+                }
+
+                // Add day2's entries to day1
+                for (const entry of day2Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            recipeId: entry.recipe.id,
+                            mealType: entry.mealType,
+                            order: entry.order
+                        })
+                    });
+                }
+
+                this.showNotification(`Zamieniono ${day1Name} ↔ ${day2Name}`, 'success');
+
+                // Reload the selected plan
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error swapping days:', error);
+                this.showNotification('Błąd zamiany dni: ' + error.message, 'error');
+            }
+        },
+
+        async swapMealEntries(entry1Id, day1Id, entry2Id, day2Id) {
+            if (!this.selectedPlan || !entry1Id || !entry2Id) return;
+
+            try {
+                // Find the entries to get their details
+                const day1 = this.selectedPlan.days.find(d => d.id === day1Id);
+                const day2 = this.selectedPlan.days.find(d => d.id === day2Id);
+
+                if (!day1 || !day2) {
+                    this.showNotification('Nie można znaleźć dni', 'error');
+                    return;
+                }
+
+                const entry1 = day1.entries?.find(e => e.id === entry1Id);
+                const entry2 = day2.entries?.find(e => e.id === entry2Id);
+
+                if (!entry1 || !entry2) {
+                    this.showNotification('Nie można znaleźć posiłków', 'error');
+                    return;
+                }
+
+                // Delete both entries
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries/${entry1Id}`, {
+                    method: 'DELETE'
+                });
+
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries/${entry2Id}`, {
+                    method: 'DELETE'
+                });
+
+                // Add entry1 to day2 (with entry2's original order)
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipeId: entry1.recipe.id,
+                        mealType: entry1.mealType,
+                        order: entry2.order
+                    })
+                });
+
+                // Add entry2 to day1 (with entry1's original order)
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipeId: entry2.recipe.id,
+                        mealType: entry2.mealType,
+                        order: entry1.order
+                    })
+                });
+
+                const day1Name = this.getDayOfWeekName(day1.dayOfWeek);
+                const day2Name = this.getDayOfWeekName(day2.dayOfWeek);
+
+                this.showNotification(`Zamieniono "${entry1.recipe.name}" (${day1Name}) ↔ "${entry2.recipe.name}" (${day2Name})`, 'success');
+
+                // Reload the selected plan
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error swapping meal entries:', error);
+                this.showNotification('Błąd zamiany posiłków: ' + error.message, 'error');
+            }
+        },
+
+        async generateMissingImagesForPlan() {
+            if (!this.selectedPlan) return;
+
+            try {
+                // Collect all unique recipes from the plan that don't have images
+                const recipesWithoutImages = new Set();
+
+                for (const day of this.selectedPlan.days) {
+                    if (day.entries) {
+                        for (const entry of day.entries) {
+                            if (entry.recipe && !entry.recipe.imageUrl) {
+                                recipesWithoutImages.add(entry.recipe.id);
+                            }
+                        }
+                    }
+                }
+
+                if (recipesWithoutImages.size === 0) {
+                    this.showNotification('Wszystkie przepisy w planie mają już zdjęcia!', 'success');
+                    return;
+                }
+
+                const count = recipesWithoutImages.size;
+                this.showNotification(`Generowanie zdjęć dla ${count} przepisów...`, 'info');
+
+                // Generate images for all recipes without images
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const recipeId of recipesWithoutImages) {
+                    try {
+                        const response = await fetch(`/api/images/generate/${recipeId}`, {
+                            method: 'POST'
+                        });
+
+                        if (response.ok) {
+                            successCount++;
+                        } else {
+                            failCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Failed to generate image for recipe ${recipeId}:`, error);
+                        failCount++;
+                    }
+                }
+
+                if (successCount > 0) {
+                    this.showNotification(`Wygenerowano ${successCount} zdjęć ${failCount > 0 ? `(${failCount} błędów)` : ''}`, 'success');
+                    // Reload recipes and plan to show new images
+                    await this.loadRecipes();
+                    await this.selectMealPlan(this.selectedPlan.id);
+                } else {
+                    this.showNotification('Nie udało się wygenerować żadnych zdjęć', 'error');
+                }
+            } catch (error) {
+                console.error('Error generating missing images:', error);
+                this.showNotification('Błąd generowania zdjęć: ' + error.message, 'error');
             }
         },
 
@@ -2042,7 +2268,8 @@ function appData() {
                 carbohydrates: recipe.carbohydrates || 0,
                 fat: recipe.fat || 0,
                 mealType: recipe.mealType,
-                servings: recipe.servings || null
+                servings: recipe.servings || null,
+                doNotScale: recipe.doNotScale || false
             };
             this.showEditRecipeModal = true;
         },

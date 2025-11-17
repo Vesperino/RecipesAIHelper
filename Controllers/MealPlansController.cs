@@ -467,80 +467,61 @@ public class MealPlansController : ControllerBase
 
                                         try
                                         {
-                                            var isDessert = entry.MealType == MealType.Deser;
+                                            List<string> scaledIngredients;
+                                            double actualScalingFactor = dayScalingFactor;
 
-                                            if (isDessert)
+                                            // Check if recipe should not be scaled
+                                            if (entry.Recipe.DoNotScale)
                                             {
-                                                // Desserts use DessertPlanningService (same portion for everyone)
-                                                var dessertModel = _db.GetSetting("DessertPlanning_Model") ?? activeProvider.Model;
-                                                var dessertService = new DessertPlanningService(apiKey, dessertModel);
-                                                var dessertPlan = await dessertService.PlanDessertAsync(entry.Recipe, persons);
-
-                                                var scaledRecipe = new MealPlanRecipe
-                                                {
-                                                    MealPlanEntryId = entry.Id,
-                                                    PersonId = person.Id,
-                                                    BaseRecipeId = entry.Recipe.Id,
-                                                    ScalingFactor = 1.0,
-                                                    ScaledIngredients = new List<string> { entry.Recipe.Ingredients },
-                                                    ScaledCalories = (int)Math.Round(dessertPlan.PortionCalories),
-                                                    ScaledProtein = entry.Recipe.Protein,
-                                                    ScaledCarbs = entry.Recipe.Carbohydrates,
-                                                    ScaledFat = entry.Recipe.Fat,
-                                                    CreatedAt = DateTime.Now
-                                                };
-                                                _db.CreateMealPlanRecipe(scaledRecipe);
-                                                Console.WriteLine($"         🍰 {entry.Recipe.Name}: deser ({dessertPlan.PortionCalories} kcal)");
+                                                // Don't scale this recipe - use factor 1.0
+                                                actualScalingFactor = 1.0;
+                                                scaledIngredients = new List<string> { entry.Recipe.Ingredients };
+                                                Console.WriteLine($"         🔒 {entry.Recipe.Name}: {entry.Recipe.Calories} kcal (NIE SKALOWANY - stała porcja)");
+                                            }
+                                            // Scale all other recipes with day factor
+                                            else if (withinTolerance)
+                                            {
+                                                // Within tolerance - use base ingredients without AI scaling
+                                                scaledIngredients = new List<string> { entry.Recipe.Ingredients };
+                                                Console.WriteLine($"         ✓ {entry.Recipe.Name}: {entry.Recipe.Calories} kcal (bez skalowania)");
                                             }
                                             else
                                             {
-                                                List<string> scaledIngredients;
+                                                // Outside tolerance - scale with AI
+                                                var scalingModel = _db.GetSetting("RecipeScaling_Model") ?? activeProvider.Model;
+                                                var scalingService = new RecipeScalingService(apiKey, scalingModel);
 
-                                                // Regular recipe - scale with day factor (or use base if within tolerance)
-                                                if (withinTolerance)
+                                                scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
+                                                    entry.Recipe,
+                                                    dayScalingFactor,
+                                                    entry.MealType
+                                                );
+
+                                                if (scaledIngredients.Count == 0)
                                                 {
-                                                    // Within tolerance - use base ingredients without AI scaling
+                                                    Console.WriteLine($"         ⚠️ {entry.Recipe.Name}: fallback do bazowych składników");
                                                     scaledIngredients = new List<string> { entry.Recipe.Ingredients };
-                                                    Console.WriteLine($"         ✓ {entry.Recipe.Name}: {entry.Recipe.Calories} kcal (bez skalowania)");
-                                                }
-                                                else
-                                                {
-                                                    // Outside tolerance - scale with AI
-                                                    var scalingModel = _db.GetSetting("RecipeScaling_Model") ?? activeProvider.Model;
-                                                    var scalingService = new RecipeScalingService(apiKey, scalingModel);
-
-                                                    scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
-                                                        entry.Recipe,
-                                                        dayScalingFactor,
-                                                        entry.MealType
-                                                    );
-
-                                                    if (scaledIngredients.Count == 0)
-                                                    {
-                                                        Console.WriteLine($"         ⚠️ {entry.Recipe.Name}: fallback do bazowych składników");
-                                                        scaledIngredients = new List<string> { entry.Recipe.Ingredients };
-                                                    }
-
-                                                    var scaledCalories = (int)Math.Round(entry.Recipe.Calories * dayScalingFactor);
-                                                    Console.WriteLine($"         ✓ {entry.Recipe.Name}: {scaledCalories} kcal ({entry.Recipe.Calories}→{scaledCalories})");
                                                 }
 
-                                                var scaledRecipe = new MealPlanRecipe
-                                                {
-                                                    MealPlanEntryId = entry.Id,
-                                                    PersonId = person.Id,
-                                                    BaseRecipeId = entry.Recipe.Id,
-                                                    ScalingFactor = dayScalingFactor,
-                                                    ScaledIngredients = scaledIngredients,
-                                                    ScaledCalories = (int)Math.Round(entry.Recipe.Calories * dayScalingFactor),
-                                                    ScaledProtein = entry.Recipe.Protein * dayScalingFactor,
-                                                    ScaledCarbs = entry.Recipe.Carbohydrates * dayScalingFactor,
-                                                    ScaledFat = entry.Recipe.Fat * dayScalingFactor,
-                                                    CreatedAt = DateTime.Now
-                                                };
-                                                _db.CreateMealPlanRecipe(scaledRecipe);
-                                                scaledCount++;
+                                                var scaledCalories = (int)Math.Round(entry.Recipe.Calories * dayScalingFactor);
+                                                Console.WriteLine($"         ✓ {entry.Recipe.Name}: {scaledCalories} kcal ({entry.Recipe.Calories}→{scaledCalories})");
                                             }
+
+                                            var scaledRecipe = new MealPlanRecipe
+                                            {
+                                                MealPlanEntryId = entry.Id,
+                                                PersonId = person.Id,
+                                                BaseRecipeId = entry.Recipe.Id,
+                                                ScalingFactor = actualScalingFactor,
+                                                ScaledIngredients = scaledIngredients,
+                                                ScaledCalories = (int)Math.Round(entry.Recipe.Calories * actualScalingFactor),
+                                                ScaledProtein = entry.Recipe.Protein * actualScalingFactor,
+                                                ScaledCarbs = entry.Recipe.Carbohydrates * actualScalingFactor,
+                                                ScaledFat = entry.Recipe.Fat * actualScalingFactor,
+                                                CreatedAt = DateTime.Now
+                                            };
+                                            _db.CreateMealPlanRecipe(scaledRecipe);
+                                            scaledCount++;
                                         }
                                         catch (Exception ex)
                                         {
@@ -730,80 +711,61 @@ public class MealPlansController : ControllerBase
 
                         try
                         {
-                            var isDessert = entry.MealType == MealType.Deser;
+                            List<string> scaledIngredients;
+                            double actualScalingFactor = dayScalingFactor;
 
-                            if (isDessert)
+                            // Check if recipe should not be scaled
+                            if (entry.Recipe.DoNotScale)
                             {
-                                // Desserts use DessertPlanningService (same portion for everyone)
-                                var dessertModel = _db.GetSetting("DessertPlanning_Model") ?? activeProvider.Model;
-                                var dessertService = new DessertPlanningService(apiKey, dessertModel);
-                                var dessertPlan = await dessertService.PlanDessertAsync(entry.Recipe, persons);
-
-                                var scaledRecipe = new MealPlanRecipe
-                                {
-                                    MealPlanEntryId = entry.Id,
-                                    PersonId = person.Id,
-                                    BaseRecipeId = entry.Recipe.Id,
-                                    ScalingFactor = 1.0,
-                                    ScaledIngredients = new List<string> { entry.Recipe.Ingredients },
-                                    ScaledCalories = (int)Math.Round(dessertPlan.PortionCalories),
-                                    ScaledProtein = entry.Recipe.Protein,
-                                    ScaledCarbs = entry.Recipe.Carbohydrates,
-                                    ScaledFat = entry.Recipe.Fat,
-                                    CreatedAt = DateTime.Now
-                                };
-                                _db.CreateMealPlanRecipe(scaledRecipe);
-                                Console.WriteLine($"         🍰 {entry.Recipe.Name}: deser ({dessertPlan.PortionCalories} kcal)");
+                                // Don't scale this recipe - use factor 1.0
+                                actualScalingFactor = 1.0;
+                                scaledIngredients = new List<string> { entry.Recipe.Ingredients };
+                                Console.WriteLine($"         🔒 {entry.Recipe.Name}: {entry.Recipe.Calories} kcal (NIE SKALOWANY - stała porcja)");
+                            }
+                            // Scale all other recipes with day factor
+                            else if (withinTolerance)
+                            {
+                                // Within tolerance - use base ingredients without AI scaling
+                                scaledIngredients = new List<string> { entry.Recipe.Ingredients };
+                                Console.WriteLine($"         ✓ {entry.Recipe.Name}: {entry.Recipe.Calories} kcal (bez skalowania)");
                             }
                             else
                             {
-                                List<string> scaledIngredients;
+                                // Outside tolerance - scale with AI
+                                var scalingModel = _db.GetSetting("RecipeScaling_Model") ?? activeProvider.Model;
+                                var scalingService = new RecipeScalingService(apiKey, scalingModel);
 
-                                // Regular recipe - scale with day factor (or use base if within tolerance)
-                                if (withinTolerance)
+                                scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
+                                    entry.Recipe,
+                                    dayScalingFactor,
+                                    entry.MealType
+                                );
+
+                                if (scaledIngredients.Count == 0)
                                 {
-                                    // Within tolerance - use base ingredients without AI scaling
+                                    Console.WriteLine($"         ⚠️ {entry.Recipe.Name}: fallback do bazowych składników");
                                     scaledIngredients = new List<string> { entry.Recipe.Ingredients };
-                                    Console.WriteLine($"         ✓ {entry.Recipe.Name}: {entry.Recipe.Calories} kcal (bez skalowania)");
-                                }
-                                else
-                                {
-                                    // Outside tolerance - scale with AI
-                                    var scalingModel = _db.GetSetting("RecipeScaling_Model") ?? activeProvider.Model;
-                                    var scalingService = new RecipeScalingService(apiKey, scalingModel);
-
-                                    scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
-                                        entry.Recipe,
-                                        dayScalingFactor,
-                                        entry.MealType
-                                    );
-
-                                    if (scaledIngredients.Count == 0)
-                                    {
-                                        Console.WriteLine($"         ⚠️ {entry.Recipe.Name}: fallback do bazowych składników");
-                                        scaledIngredients = new List<string> { entry.Recipe.Ingredients };
-                                    }
-
-                                    var scaledCalories = (int)Math.Round(entry.Recipe.Calories * dayScalingFactor);
-                                    Console.WriteLine($"         ✓ {entry.Recipe.Name}: {scaledCalories} kcal ({entry.Recipe.Calories}→{scaledCalories})");
                                 }
 
-                                var scaledRecipe = new MealPlanRecipe
-                                {
-                                    MealPlanEntryId = entry.Id,
-                                    PersonId = person.Id,
-                                    BaseRecipeId = entry.Recipe.Id,
-                                    ScalingFactor = dayScalingFactor,
-                                    ScaledIngredients = scaledIngredients,
-                                    ScaledCalories = (int)Math.Round(entry.Recipe.Calories * dayScalingFactor),
-                                    ScaledProtein = entry.Recipe.Protein * dayScalingFactor,
-                                    ScaledCarbs = entry.Recipe.Carbohydrates * dayScalingFactor,
-                                    ScaledFat = entry.Recipe.Fat * dayScalingFactor,
-                                    CreatedAt = DateTime.Now
-                                };
-                                _db.CreateMealPlanRecipe(scaledRecipe);
-                                scaledCount++;
+                                var scaledCalories = (int)Math.Round(entry.Recipe.Calories * dayScalingFactor);
+                                Console.WriteLine($"         ✓ {entry.Recipe.Name}: {scaledCalories} kcal ({entry.Recipe.Calories}→{scaledCalories})");
                             }
+
+                            var scaledRecipe = new MealPlanRecipe
+                            {
+                                MealPlanEntryId = entry.Id,
+                                PersonId = person.Id,
+                                BaseRecipeId = entry.Recipe.Id,
+                                ScalingFactor = actualScalingFactor,
+                                ScaledIngredients = scaledIngredients,
+                                ScaledCalories = (int)Math.Round(entry.Recipe.Calories * actualScalingFactor),
+                                ScaledProtein = entry.Recipe.Protein * actualScalingFactor,
+                                ScaledCarbs = entry.Recipe.Carbohydrates * actualScalingFactor,
+                                ScaledFat = entry.Recipe.Fat * actualScalingFactor,
+                                CreatedAt = DateTime.Now
+                            };
+                            _db.CreateMealPlanRecipe(scaledRecipe);
+                            scaledCount++;
                         }
                         catch (Exception ex)
                         {
@@ -1403,127 +1365,75 @@ public class MealPlansController : ControllerBase
             if (string.IsNullOrEmpty(apiKey))
                 return BadRequest(new { error = "API key not configured. Configure it in Settings." });
 
-            // Check if this is a dessert
-            var isDessert = entry.MealType == MealType.Deser;
+            // Scale recipe for each person (including desserts)
+            var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
 
-            if (isDessert)
+            // Use MAX calories as baseline - recipes from DB are for max person
+            // Others get scaled DOWN (scalingFactor <= 1.0)
+            var maxCalories = persons.Max(p => p.TargetCalories);
+            var baselineCalories = recipe.Calories;
+
+            Console.WriteLine($"   📊 Bazowa kaloryczność (osoba z max): {maxCalories} kcal");
+
+            var scaledCount = 0;
+
+            foreach (var person in persons)
             {
-                // Use DessertPlanningService
-                var dessertService = new DessertPlanningService(apiKey, activeProvider.Model);
-                var dessertPlan = await dessertService.PlanDessertAsync(recipe, persons);
+                // Calculate scaling factor - max person gets 1.0, others get < 1.0
+                var scalingFactor = (double)person.TargetCalories / maxCalories;
 
-                Console.WriteLine($"🍰 Plan deseru: {dessertPlan.TotalPortions} porcji, {dessertPlan.DaysToSpread} dni");
-                Console.WriteLine($"   {dessertPlan.Explanation}");
+                Console.WriteLine($"   → {person.Name}: współczynnik {scalingFactor:F2}");
 
-                // For desserts, create same portion for everyone
-                foreach (var person in persons)
+                // Scale ingredients using AI
+                var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
+                    recipe,
+                    scalingFactor,
+                    entry.MealType
+                );
+
+                if (scaledIngredients.Count == 0)
                 {
-                    var scaledRecipe = new MealPlanRecipe
-                    {
-                        MealPlanEntryId = entryId,
-                        PersonId = person.Id,
-                        BaseRecipeId = recipe.Id,
-                        ScalingFactor = 1.0, // Same portion for everyone
-                        ScaledIngredients = new List<string> { recipe.Ingredients },
-                        ScaledCalories = (int)Math.Round(dessertPlan.PortionCalories),
-                        ScaledProtein = recipe.Protein,
-                        ScaledCarbs = recipe.Carbohydrates,
-                        ScaledFat = recipe.Fat,
-                        CreatedAt = DateTime.Now
-                    };
-
-                    _db.CreateMealPlanRecipe(scaledRecipe);
-                    Console.WriteLine($"   ✓ {person.Name}: {dessertPlan.PortionCalories} kcal (1.0x)");
+                    Console.WriteLine($"   ⚠️ Nie udało się przeskalować dla {person.Name}, używam bazowego przepisu");
+                    scaledIngredients = new List<string> { recipe.Ingredients };
                 }
 
-                return Ok(new
+                // Calculate scaled nutrition
+                var scaledCalories = (int)Math.Round(recipe.Calories * scalingFactor);
+                var scaledProtein = recipe.Protein * scalingFactor;
+                var scaledCarbs = recipe.Carbohydrates * scalingFactor;
+                var scaledFat = recipe.Fat * scalingFactor;
+
+                var scaledRecipe = new MealPlanRecipe
                 {
-                    message = "Dessert planned successfully",
-                    recipeName = recipe.Name,
-                    isDessert = true,
-                    dessertPlan = new
-                    {
-                        totalPortions = dessertPlan.TotalPortions,
-                        portionCalories = dessertPlan.PortionCalories,
-                        daysToSpread = dessertPlan.DaysToSpread,
-                        explanation = dessertPlan.Explanation
-                    },
-                    scaledRecipes = persons.Count
-                });
+                    MealPlanEntryId = entryId,
+                    PersonId = person.Id,
+                    BaseRecipeId = recipe.Id,
+                    ScalingFactor = scalingFactor,
+                    ScaledIngredients = scaledIngredients,
+                    ScaledCalories = scaledCalories,
+                    ScaledProtein = scaledProtein,
+                    ScaledCarbs = scaledCarbs,
+                    ScaledFat = scaledFat,
+                    CreatedAt = DateTime.Now
+                };
+
+                _db.CreateMealPlanRecipe(scaledRecipe);
+                scaledCount++;
+
+                Console.WriteLine($"   ✓ {person.Name}: {scaledCalories} kcal ({scalingFactor:F2}x)");
             }
-            else
+
+            return Ok(new
             {
-                // Regular recipe - scale for each person
-                var scalingService = new RecipeScalingService(apiKey, activeProvider.Model);
-
-                // Use MAX calories as baseline - recipes from DB are for max person
-                // Others get scaled DOWN (scalingFactor <= 1.0)
-                var maxCalories = persons.Max(p => p.TargetCalories);
-                var baselineCalories = recipe.Calories;
-
-                Console.WriteLine($"   📊 Bazowa kaloryczność (osoba z max): {maxCalories} kcal");
-
-                var scaledCount = 0;
-
-                foreach (var person in persons)
+                message = "Recipe scaled successfully",
+                recipeName = recipe.Name,
+                scaledRecipes = scaledCount,
+                persons = persons.Select(p => new
                 {
-                    // Calculate scaling factor - max person gets 1.0, others get < 1.0
-                    var scalingFactor = (double)person.TargetCalories / maxCalories;
-
-                    Console.WriteLine($"   → {person.Name}: współczynnik {scalingFactor:F2}");
-
-                    // Scale ingredients using AI
-                    var scaledIngredients = await scalingService.ScaleRecipeIngredientsAsync(
-                        recipe,
-                        scalingFactor,
-                        entry.MealType
-                    );
-
-                    if (scaledIngredients.Count == 0)
-                    {
-                        Console.WriteLine($"   ⚠️ Nie udało się przeskalować dla {person.Name}, używam bazowego przepisu");
-                        scaledIngredients = new List<string> { recipe.Ingredients };
-                    }
-
-                    // Calculate scaled nutrition
-                    var scaledCalories = (int)Math.Round(recipe.Calories * scalingFactor);
-                    var scaledProtein = recipe.Protein * scalingFactor;
-                    var scaledCarbs = recipe.Carbohydrates * scalingFactor;
-                    var scaledFat = recipe.Fat * scalingFactor;
-
-                    var scaledRecipe = new MealPlanRecipe
-                    {
-                        MealPlanEntryId = entryId,
-                        PersonId = person.Id,
-                        BaseRecipeId = recipe.Id,
-                        ScalingFactor = scalingFactor,
-                        ScaledIngredients = scaledIngredients,
-                        ScaledCalories = scaledCalories,
-                        ScaledProtein = scaledProtein,
-                        ScaledCarbs = scaledCarbs,
-                        ScaledFat = scaledFat,
-                        CreatedAt = DateTime.Now
-                    };
-
-                    _db.CreateMealPlanRecipe(scaledRecipe);
-                    scaledCount++;
-
-                    Console.WriteLine($"   ✓ {person.Name}: {scaledCalories} kcal ({scalingFactor:F2}x)");
-                }
-
-                return Ok(new
-                {
-                    message = "Recipe scaled successfully",
-                    recipeName = recipe.Name,
-                    isDessert = false,
-                    scaledRecipes = scaledCount,
-                    persons = persons.Select(p => new
-                    {
-                        name = p.Name,
-                        targetCalories = p.TargetCalories
-                    })
-                });
-            }
+                    name = p.Name,
+                    targetCalories = p.TargetCalories
+                })
+            });
         }
         catch (Exception ex)
         {

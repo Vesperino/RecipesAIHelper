@@ -72,3 +72,7 @@ Thumbs.db
 # API keys (make sure these are never committed)
 appsettings.json
 appsettings.Development.json
+
+# Published release files
+publish/
+RecipesAIHelper-Release.zip

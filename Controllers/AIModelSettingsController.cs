@@ -15,7 +15,7 @@ public class AIModelSettingsController : ControllerBase
     }
 
     /// <summary>
-    /// Get AI model settings for scaling and dessert planning
+    /// Get AI model settings for recipe scaling
     /// GET /api/aimodelsettings
     /// </summary>
     [HttpGet]
@@ -28,10 +28,6 @@ public class AIModelSettingsController : ControllerBase
                 recipeScaling = new
                 {
                     model = _db.GetSetting("RecipeScaling_Model") ?? "gemini-2.5-flash"
-                },
-                dessertPlanning = new
-                {
-                    model = _db.GetSetting("DessertPlanning_Model") ?? "gemini-2.5-flash"
                 }
             };
 
@@ -44,7 +40,7 @@ public class AIModelSettingsController : ControllerBase
     }
 
     /// <summary>
-    /// Update AI model settings for scaling and dessert planning
+    /// Update AI model settings for recipe scaling
     /// PUT /api/aimodelsettings
     /// </summary>
     [HttpPut]
@@ -63,15 +59,6 @@ public class AIModelSettingsController : ControllerBase
                 Console.WriteLine($"✅ Zmieniono model skalowania przepisów na: {update.RecipeScaling.Model}");
             }
 
-            // Update dessert planning model
-            if (!string.IsNullOrEmpty(update.DessertPlanning?.Model))
-            {
-                _db.UpsertSetting("DessertPlanning_Model", update.DessertPlanning.Model, "string",
-                    "Model AI do planowania deserów");
-                updated = true;
-                Console.WriteLine($"✅ Zmieniono model planowania deserów na: {update.DessertPlanning.Model}");
-            }
-
             if (updated)
             {
                 return Ok(new
@@ -79,8 +66,7 @@ public class AIModelSettingsController : ControllerBase
                     message = "AI model settings updated successfully",
                     currentSettings = new
                     {
-                        recipeScaling = _db.GetSetting("RecipeScaling_Model") ?? "gemini-2.5-flash",
-                        dessertPlanning = _db.GetSetting("DessertPlanning_Model") ?? "gemini-2.5-flash"
+                        recipeScaling = _db.GetSetting("RecipeScaling_Model") ?? "gemini-2.5-flash"
                     }
                 });
             }
@@ -101,15 +87,9 @@ public class AIModelSettingsController : ControllerBase
 public class AIModelSettingsUpdate
 {
     public RecipeScalingSettings? RecipeScaling { get; set; }
-    public DessertPlanningSettings? DessertPlanning { get; set; }
 }
 
 public class RecipeScalingSettings
-{
-    public string? Model { get; set; }
-}
-
-public class DessertPlanningSettings
 {
     public string? Model { get; set; }
 }

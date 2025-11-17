@@ -247,185 +247,143 @@
         <!-- Tab: Database -->
         <div x-show="currentTab === 'database'" x-cloak class="space-y-6">
             <!-- Search and Actions -->
-            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
-                <h2 class="text-2xl font-bold text-white mb-4">🗃️ Baza Przepisów</h2>
-                <div class="flex gap-4 mb-4">
+            <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-4">
+                <h2 class="text-xl font-bold text-white mb-3">🗃️ Baza Przepisów</h2>
+                <div class="flex gap-2 mb-2">
                     <input type="text" x-model="searchQuery" @input="filterRecipes()"
                            placeholder="Szukaj przepisu..."
-                           class="flex-1 bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                           class="flex-1 bg-gray-900/50 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 outline-none">
                     <button @click="openCreateRecipeModal()"
-                            class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                         </svg>
-                        Dodaj przepis
+                        Dodaj
                     </button>
                     <button @click="loadRecipes()"
-                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200">
+                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200">
                         Odśwież
                     </button>
                 </div>
-                <div class="text-gray-400 text-sm mb-4">
-                    Znaleziono: <span x-text="filteredRecipes.length" class="font-bold text-white"></span> przepisów
-                    <span x-show="recipesWithoutImages > 0" class="ml-4">
+                <div class="text-gray-400 text-xs mb-2">
+                    Znaleziono: <span x-text="filteredRecipes.length" class="font-bold text-white"></span>
+                    <span x-show="recipesWithoutImages > 0" class="ml-3">
                         | Bez zdjęć: <span x-text="recipesWithoutImages" class="font-bold text-orange-400"></span>
                     </span>
                 </div>
 
                 <!-- Advanced Filters -->
-                <div class="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="mb-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
                             </svg>
-                            Zaawansowane filtry
+                            Filtry
                         </h3>
                         <button @click="clearRecipeFilters()"
-                                class="text-sm text-blue-400 hover:text-blue-300 transition-colors">
-                            Wyczyść wszystkie
+                                class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                            Wyczyść
                         </button>
                     </div>
 
                     <!-- Meal Type Filter -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-300 mb-2">Typ posiłku</label>
-                        <div class="flex flex-wrap gap-2">
+                    <div class="mb-1.5">
+                        <label class="block text-xs text-gray-400 mb-0.5">Typ</label>
+                        <div class="flex flex-wrap gap-1">
                             <!-- Updated to match C# MealType enum: Sniadanie=0, Deser=1, Obiad=2, Kolacja=3, Napoj=4 -->
                             <button @click="toggleMealTypeFilter(0)"
                                     :class="recipeFilters.mealTypes.includes(0) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
-                                    class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
+                                    class="px-2 py-0.5 rounded text-xs text-white border transition-colors">
                                 Śniadanie
                             </button>
                             <button @click="toggleMealTypeFilter(1)"
                                     :class="recipeFilters.mealTypes.includes(1) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
-                                    class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
+                                    class="px-2 py-0.5 rounded text-xs text-white border transition-colors">
                                 Deser
                             </button>
                             <button @click="toggleMealTypeFilter(2)"
                                     :class="recipeFilters.mealTypes.includes(2) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
-                                    class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
+                                    class="px-2 py-0.5 rounded text-xs text-white border transition-colors">
                                 Obiad
                             </button>
                             <button @click="toggleMealTypeFilter(3)"
                                     :class="recipeFilters.mealTypes.includes(3) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
-                                    class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
+                                    class="px-2 py-0.5 rounded text-xs text-white border transition-colors">
                                 Kolacja
                             </button>
                             <button @click="toggleMealTypeFilter(4)"
                                     :class="recipeFilters.mealTypes.includes(4) ? 'bg-blue-600 border-blue-500' : 'bg-gray-700 border-gray-600'"
-                                    class="px-3 py-1.5 rounded-lg text-sm text-white border transition-colors">
+                                    class="px-2 py-0.5 rounded text-xs text-white border transition-colors">
                                 Napój
                             </button>
                         </div>
                     </div>
 
                     <!-- Nutrition Filters -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                         <!-- Calories -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-2">
-                                Kalorie (kcal)
-                                <span x-show="recipeFilters.calories.min > 0 || recipeFilters.calories.max < 3000"
-                                      class="text-blue-400 text-xs ml-1">
-                                    (<span x-text="recipeFilters.calories.min"></span> - <span x-text="recipeFilters.calories.max"></span>)
-                                </span>
+                            <label class="block text-xs text-gray-400 mb-0.5">
+                                Kcal <span x-show="recipeFilters.calories.min > 0 || recipeFilters.calories.max < 3000" class="text-blue-400">(<span x-text="recipeFilters.calories.min"></span>-<span x-text="recipeFilters.calories.max"></span>)</span>
                             </label>
-                            <div class="space-y-2">
-                                <input type="range" x-model.number="recipeFilters.calories.min" min="0" max="3000" step="50"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
-                                <input type="range" x-model.number="recipeFilters.calories.max" min="0" max="3000" step="50"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
-                            </div>
+                            <input type="range" x-model.number="recipeFilters.calories.min" min="0" max="3000" step="50" @input="applyRecipeFilters()" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer mb-0.5">
+                            <input type="range" x-model.number="recipeFilters.calories.max" min="0" max="3000" step="50" @input="applyRecipeFilters()" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer">
                         </div>
 
                         <!-- Protein -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-2">
-                                <span class="text-blue-300">P</span> Białko (g)
-                                <span x-show="recipeFilters.protein.min > 0 || recipeFilters.protein.max < 200"
-                                      class="text-blue-400 text-xs ml-1">
-                                    (<span x-text="recipeFilters.protein.min"></span> - <span x-text="recipeFilters.protein.max"></span>)
-                                </span>
+                            <label class="block text-xs text-gray-400 mb-0.5">
+                                <span class="text-blue-300">P</span> <span x-show="recipeFilters.protein.min > 0 || recipeFilters.protein.max < 200" class="text-blue-400">(<span x-text="recipeFilters.protein.min"></span>-<span x-text="recipeFilters.protein.max"></span>)</span>
                             </label>
-                            <div class="space-y-2">
-                                <input type="range" x-model.number="recipeFilters.protein.min" min="0" max="200" step="5"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-blue-900/30 rounded-lg appearance-none cursor-pointer">
-                                <input type="range" x-model.number="recipeFilters.protein.max" min="0" max="200" step="5"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-blue-900/30 rounded-lg appearance-none cursor-pointer">
-                            </div>
+                            <input type="range" x-model.number="recipeFilters.protein.min" min="0" max="200" step="5" @input="applyRecipeFilters()" class="w-full h-1 bg-blue-900/30 rounded-lg appearance-none cursor-pointer mb-0.5">
+                            <input type="range" x-model.number="recipeFilters.protein.max" min="0" max="200" step="5" @input="applyRecipeFilters()" class="w-full h-1 bg-blue-900/30 rounded-lg appearance-none cursor-pointer">
                         </div>
 
                         <!-- Carbohydrates -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-2">
-                                <span class="text-yellow-300">C</span> Węglowodany (g)
-                                <span x-show="recipeFilters.carbs.min > 0 || recipeFilters.carbs.max < 300"
-                                      class="text-blue-400 text-xs ml-1">
-                                    (<span x-text="recipeFilters.carbs.min"></span> - <span x-text="recipeFilters.carbs.max"></span>)
-                                </span>
+                            <label class="block text-xs text-gray-400 mb-0.5">
+                                <span class="text-yellow-300">C</span> <span x-show="recipeFilters.carbs.min > 0 || recipeFilters.carbs.max < 300" class="text-blue-400">(<span x-text="recipeFilters.carbs.min"></span>-<span x-text="recipeFilters.carbs.max"></span>)</span>
                             </label>
-                            <div class="space-y-2">
-                                <input type="range" x-model.number="recipeFilters.carbs.min" min="0" max="300" step="5"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-yellow-900/30 rounded-lg appearance-none cursor-pointer">
-                                <input type="range" x-model.number="recipeFilters.carbs.max" min="0" max="300" step="5"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-yellow-900/30 rounded-lg appearance-none cursor-pointer">
-                            </div>
+                            <input type="range" x-model.number="recipeFilters.carbs.min" min="0" max="300" step="5" @input="applyRecipeFilters()" class="w-full h-1 bg-yellow-900/30 rounded-lg appearance-none cursor-pointer mb-0.5">
+                            <input type="range" x-model.number="recipeFilters.carbs.max" min="0" max="300" step="5" @input="applyRecipeFilters()" class="w-full h-1 bg-yellow-900/30 rounded-lg appearance-none cursor-pointer">
                         </div>
 
                         <!-- Fat -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-2">
-                                <span class="text-red-300">F</span> Tłuszcze (g)
-                                <span x-show="recipeFilters.fat.min > 0 || recipeFilters.fat.max < 150"
-                                      class="text-blue-400 text-xs ml-1">
-                                    (<span x-text="recipeFilters.fat.min"></span> - <span x-text="recipeFilters.fat.max"></span>)
-                                </span>
+                            <label class="block text-xs text-gray-400 mb-0.5">
+                                <span class="text-red-300">F</span> <span x-show="recipeFilters.fat.min > 0 || recipeFilters.fat.max < 150" class="text-blue-400">(<span x-text="recipeFilters.fat.min"></span>-<span x-text="recipeFilters.fat.max"></span>)</span>
                             </label>
-                            <div class="space-y-2">
-                                <input type="range" x-model.number="recipeFilters.fat.min" min="0" max="150" step="5"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-red-900/30 rounded-lg appearance-none cursor-pointer">
-                                <input type="range" x-model.number="recipeFilters.fat.max" min="0" max="150" step="5"
-                                       @input="applyRecipeFilters()"
-                                       class="w-full h-2 bg-red-900/30 rounded-lg appearance-none cursor-pointer">
-                            </div>
+                            <input type="range" x-model.number="recipeFilters.fat.min" min="0" max="150" step="5" @input="applyRecipeFilters()" class="w-full h-1 bg-red-900/30 rounded-lg appearance-none cursor-pointer mb-0.5">
+                            <input type="range" x-model.number="recipeFilters.fat.max" min="0" max="150" step="5" @input="applyRecipeFilters()" class="w-full h-1 bg-red-900/30 rounded-lg appearance-none cursor-pointer">
                         </div>
                     </div>
 
                     <!-- Sorting Options -->
-                    <div class="mt-4 pt-4 border-t border-gray-700">
-                        <label class="block text-sm font-medium text-gray-300 mb-2">Sortowanie</label>
-                        <div class="flex flex-wrap gap-3">
-                            <select x-model="recipeSorting.field" @change="applyRecipeFilters()"
-                                    class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <option value="name">Nazwa</option>
-                                <option value="calories">Kalorie</option>
-                                <option value="protein">Białko</option>
-                                <option value="carbohydrates">Węglowodany</option>
-                                <option value="fat">Tłuszcze</option>
-                            </select>
-                            <button @click="toggleSortDirection()"
-                                    class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white rounded-lg px-4 py-2 text-sm transition-colors flex items-center gap-2">
-                                <span x-text="recipeSorting.direction === 'desc' ? '⬇ Malejąco' : '⬆ Rosnąco'"></span>
-                            </button>
-                        </div>
+                    <div class="mt-1.5 pt-1.5 border-t border-gray-700/50 flex items-center gap-2">
+                        <label class="text-xs text-gray-400">Sortuj:</label>
+                        <select x-model="recipeSorting.field" @change="applyRecipeFilters()"
+                                class="bg-gray-700 border border-gray-600 text-white rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-blue-500">
+                            <option value="name">Nazwa</option>
+                            <option value="calories">Kalorie</option>
+                            <option value="protein">Białko</option>
+                            <option value="carbohydrates">Węglowodany</option>
+                            <option value="fat">Tłuszcze</option>
+                        </select>
+                        <button @click="toggleSortDirection()"
+                                class="bg-gray-700 hover:bg-gray-600 border border-gray-600 text-white rounded px-2 py-0.5 text-xs transition-colors">
+                            <span x-text="recipeSorting.direction === 'desc' ? '⬇' : '⬆'"></span>
+                        </button>
                     </div>
 
                     <!-- Active Filters Summary -->
-                    <div x-show="hasActiveFilters()" class="mt-4 pt-4 border-t border-gray-700">
-                        <div class="flex flex-wrap gap-2 items-center">
-                            <span class="text-sm text-gray-400">Aktywne filtry:</span>
+                    <div x-show="hasActiveFilters()" class="mt-1.5 pt-1.5 border-t border-gray-700/50">
+                        <div class="flex flex-wrap gap-1 items-center">
+                            <span class="text-xs text-gray-400">Aktywne:</span>
                             <template x-for="mealType in recipeFilters.mealTypes" :key="mealType">
-                                <span class="bg-blue-900/30 text-blue-300 px-2 py-1 rounded text-xs flex items-center gap-1">
+                                <span class="bg-blue-900/30 text-blue-300 px-1.5 py-0.5 rounded text-xs flex items-center gap-0.5">
                                     <span x-text="getMealTypeName(mealType)"></span>
-                                    <button @click="toggleMealTypeFilter(mealType)" class="hover:text-blue-100">×</button>
+                                    <button @click="toggleMealTypeFilter(mealType)" class="hover:text-blue-100 text-sm">×</button>
                                 </span>
                             </template>
                         </div>
@@ -433,31 +391,31 @@
                 </div>
 
                 <!-- Image Generation Toolbar -->
-                <div class="flex flex-wrap gap-3 pt-4 border-t border-gray-700">
+                <div class="flex flex-wrap gap-2 pt-2 mt-2 border-t border-gray-700/50">
                     <button @click="generateImagesForSelected()"
                             x-show="selectedRecipeIds.length > 0"
                             :disabled="isGeneratingImages"
-                            class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-all duration-200 flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                         </svg>
-                        <span x-text="`Generuj dla zaznaczonych (${selectedRecipeIds.length})`"></span>
+                        <span x-text="`Generuj (${selectedRecipeIds.length})`"></span>
                     </button>
 
                     <button @click="generateImagesForAllMissing()"
                             x-show="recipesWithoutImages > 0"
                             :disabled="isGeneratingImages"
-                            class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-all duration-200 flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                         </svg>
-                        <span x-text="`Generuj dla wszystkich bez zdjęć (${recipesWithoutImages})`"></span>
+                        <span x-text="`Generuj bez zdjęć (${recipesWithoutImages})`"></span>
                     </button>
 
                     <button @click="clearSelection()"
                             x-show="selectedRecipeIds.length > 0"
-                            class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
-                        Odznacz wszystkie
+                            class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-all duration-200">
+                        Odznacz
                     </button>
 
                     <!-- Progress indicator -->
@@ -553,7 +511,10 @@
                         <!-- Recipe Content -->
                         <div class="p-4">
                             <div class="flex items-start justify-between mb-2">
-                                <h3 class="text-lg font-bold text-white" x-text="recipe.name"></h3>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-lg font-bold text-white" x-text="recipe.name"></h3>
+                                    <span x-show="recipe.doNotScale" class="text-orange-400 flex-shrink-0" title="Przepis nie będzie skalowany">🔒</span>
+                                </div>
                                 <div class="flex flex-wrap gap-1">
                                     <span class="bg-blue-900/50 text-blue-400 text-xs px-2 py-1 rounded"
                                           x-text="getMealTypeName(recipe.mealType)"></span>
@@ -827,18 +788,18 @@
                                     class="px-3 py-1 rounded-lg text-sm text-white hover:bg-blue-600 transition-colors">
                                 Śniadanie
                             </button>
-                            <button @click="filterMealType = 1; filterRecipesForMealPlan()"
-                                    :class="filterMealType === 1 ? 'bg-blue-600' : 'bg-gray-700'"
-                                    class="px-3 py-1 rounded-lg text-sm text-white hover:bg-blue-600 transition-colors">
-                                Obiad
-                            </button>
                             <button @click="filterMealType = 2; filterRecipesForMealPlan()"
                                     :class="filterMealType === 2 ? 'bg-blue-600' : 'bg-gray-700'"
                                     class="px-3 py-1 rounded-lg text-sm text-white hover:bg-blue-600 transition-colors">
-                                Kolacja
+                                Obiad
                             </button>
                             <button @click="filterMealType = 3; filterRecipesForMealPlan()"
                                     :class="filterMealType === 3 ? 'bg-blue-600' : 'bg-gray-700'"
+                                    class="px-3 py-1 rounded-lg text-sm text-white hover:bg-blue-600 transition-colors">
+                                Kolacja
+                            </button>
+                            <button @click="filterMealType = 1; filterRecipesForMealPlan()"
+                                    :class="filterMealType === 1 ? 'bg-blue-600' : 'bg-gray-700'"
                                     class="px-3 py-1 rounded-lg text-sm text-white hover:bg-blue-600 transition-colors">
                                 Deser
                             </button>
@@ -873,13 +834,24 @@
                             </div>
                         </div>
 
+                        <!-- Quick Add Tip -->
+                        <div x-show="selectedPlan" class="mb-3 p-2 bg-green-900/20 border border-green-600/30 rounded-lg">
+                            <div class="flex items-center gap-2 text-xs text-green-300">
+                                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                </svg>
+                                <span>Kliknij <strong class="text-green-200">+</strong> przy przepisie aby szybko dodać do wybranego dnia lub przeciągnij</span>
+                            </div>
+                        </div>
+
                         <!-- Recipe List (scrollable) -->
                         <div class="space-y-2 max-h-[600px] overflow-y-auto pr-2">
                             <template x-for="recipe in filteredMealPlanRecipes" :key="recipe.id">
                                 <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-3 hover:border-blue-500/50 transition-all relative group"
                                      draggable="true"
                                      @dragstart="draggedRecipe = recipe"
-                                     @dragend="draggedRecipe = null">
+                                     @dragend="draggedRecipe = null"
+                                     x-data="{ showDayMenu: false }">
                                     <div class="flex items-start gap-3">
                                         <div x-show="recipe.imageUrl" class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
                                             <img :src="recipe.imageUrl" :alt="recipe.name" class="w-full h-full object-cover">
@@ -887,19 +859,51 @@
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-start justify-between gap-2">
                                                 <div class="flex-1 min-w-0">
-                                                    <h4 class="font-medium text-white text-sm truncate" x-text="recipe.name"></h4>
+                                                    <h4 class="font-medium text-white text-sm truncate flex items-center gap-1">
+                                                        <span x-text="recipe.name"></span>
+                                                        <span x-show="recipe.doNotScale" class="text-orange-400 text-xs flex-shrink-0" title="Przepis nie jest skalowany">🔒</span>
+                                                    </h4>
                                                     <p class="text-xs text-gray-400 mb-1">
                                                         <span x-text="getMealTypeName(recipe.mealType)"></span>
+                                                        <span x-show="recipe.doNotScale" class="text-orange-400 ml-1">(stała porcja)</span>
                                                     </p>
                                                 </div>
-                                                <!-- Info icon button -->
-                                                <button @click.stop="viewRecipeDetails(recipe)"
-                                                        class="opacity-0 group-hover:opacity-100 transition-opacity text-blue-400 hover:text-blue-300 flex-shrink-0"
-                                                        title="Zobacz szczegóły">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                                    </svg>
-                                                </button>
+                                                <div class="flex gap-1">
+                                                    <!-- Quick add to day button -->
+                                                    <div class="relative" x-show="selectedPlan">
+                                                        <button @click.stop="showDayMenu = !showDayMenu"
+                                                                class="opacity-0 group-hover:opacity-100 transition-opacity text-green-400 hover:text-green-300 flex-shrink-0"
+                                                                title="Dodaj do dnia">
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                                            </svg>
+                                                        </button>
+                                                        <!-- Dropdown menu -->
+                                                        <div x-show="showDayMenu"
+                                                             @click.away="showDayMenu = false"
+                                                             x-transition
+                                                             class="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 min-w-[140px]">
+                                                            <div class="p-1">
+                                                                <div class="px-3 py-1 text-xs font-semibold text-gray-400 border-b border-gray-700">Dodaj do:</div>
+                                                                <template x-for="day in selectedPlan?.days" :key="day.id">
+                                                                    <button @click.stop="addRecipeToDayQuick(recipe, day.id); showDayMenu = false"
+                                                                            class="w-full text-left px-3 py-2 text-sm text-white hover:bg-blue-600/20 rounded transition-colors flex items-center justify-between gap-2">
+                                                                        <span x-text="getDayOfWeekName(day.dayOfWeek)"></span>
+                                                                        <span class="text-xs text-gray-400" x-text="formatDate(day.date)"></span>
+                                                                    </button>
+                                                                </template>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <!-- Info icon button -->
+                                                    <button @click.stop="viewRecipeDetails(recipe)"
+                                                            class="opacity-0 group-hover:opacity-100 transition-opacity text-blue-400 hover:text-blue-300 flex-shrink-0"
+                                                            title="Zobacz szczegóły">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             </div>
 
                                             <!-- Nutrition info -->
@@ -973,18 +977,57 @@
                             </div>
                         </template>
 
-                        <h3 class="text-lg font-bold text-white mb-4">Plan Tygodnia</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-bold text-white">Plan Tygodnia</h3>
+                            <!-- Generate missing images button -->
+                            <button @click="generateMissingImagesForPlan()"
+                                    x-show="selectedPlan"
+                                    class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg transition-colors flex items-center gap-1"
+                                    title="Wygeneruj brakujące zdjęcia dla przepisów">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                </svg>
+                                Generuj zdjęcia
+                            </button>
+                        </div>
 
-                        <!-- Days -->
-                        <div class="space-y-4">
+                        <!-- Days (scrollable) -->
+                        <div class="space-y-4 max-h-[700px] overflow-y-auto pr-2">
                             <template x-for="day in selectedPlan?.days" :key="day.id">
-                                <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+                                <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4"
+                                     x-data="{ showSwapMenu: false }">
                                     <div class="flex items-start justify-between mb-3">
-                                        <div>
+                                        <div class="flex items-center gap-2">
                                             <h4 class="font-bold text-white">
                                                 <span x-text="getDayOfWeekName(day.dayOfWeek)"></span>
                                                 <span class="text-sm text-gray-400 font-normal ml-2" x-text="formatDate(day.date)"></span>
                                             </h4>
+                                            <!-- Swap days button -->
+                                            <div class="relative" x-show="selectedPlan?.days?.length > 1">
+                                                <button @click.stop="showSwapMenu = !showSwapMenu"
+                                                        class="text-gray-400 hover:text-blue-400 transition-colors"
+                                                        title="Zamień dni miejscami">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                                                    </svg>
+                                                </button>
+                                                <!-- Swap menu dropdown -->
+                                                <div x-show="showSwapMenu"
+                                                     @click.away="showSwapMenu = false"
+                                                     x-transition
+                                                     class="absolute left-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 min-w-[180px]">
+                                                    <div class="p-1">
+                                                        <div class="px-3 py-1 text-xs font-semibold text-gray-400 border-b border-gray-700">Zamień z:</div>
+                                                        <template x-for="otherDay in selectedPlan?.days.filter(d => d.id !== day.id)" :key="otherDay.id">
+                                                            <button @click.stop="swapDays(day.id, otherDay.id); showSwapMenu = false"
+                                                                    class="w-full text-left px-3 py-2 text-sm text-white hover:bg-blue-600/20 rounded transition-colors flex items-center justify-between gap-2">
+                                                                <span x-text="getDayOfWeekName(otherDay.dayOfWeek)"></span>
+                                                                <span class="text-xs text-gray-400" x-text="formatDate(otherDay.date)"></span>
+                                                            </button>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div x-show="day.entries && day.entries.length > 0" class="flex flex-wrap gap-2 text-xs">
                                             <span class="bg-gradient-to-r from-purple-600/20 to-purple-700/20 border border-purple-500/30 px-2 py-1 rounded text-purple-300 font-semibold">
@@ -1012,7 +1055,8 @@
                                             <div class="bg-gray-800 border border-gray-600 rounded-lg p-3 group hover:border-blue-500/50 transition-all cursor-move"
                                                  draggable="true"
                                                  @dragstart="startDragEntry(entry, day.id)"
-                                                 @dragend="endDragEntry()">
+                                                 @dragend="endDragEntry()"
+                                                 x-data="{ showSwapMealMenu: false }">
                                                 <div class="flex items-start gap-3">
                                                     <!-- Recipe Image -->
                                                     <div x-show="entry.recipe?.imageUrl" class="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
@@ -1024,10 +1068,14 @@
                                                             <div class="flex-1 min-w-0">
                                                                 <button @click="viewRecipeDetails(entry.recipe)"
                                                                         class="text-left w-full group-hover:text-blue-400 transition-colors">
-                                                                    <p class="text-sm font-medium text-white truncate mb-1 group-hover:text-blue-400" x-text="entry.recipe?.name"></p>
+                                                                    <p class="text-sm font-medium text-white truncate mb-1 group-hover:text-blue-400 flex items-center gap-1">
+                                                                        <span x-text="entry.recipe?.name"></span>
+                                                                        <span x-show="entry.recipe?.doNotScale" class="text-orange-400 flex-shrink-0" title="Przepis nie jest skalowany">🔒</span>
+                                                                    </p>
                                                                 </button>
                                                                 <p class="text-xs text-gray-400 mb-2">
                                                                     <span x-text="getMealTypeName(entry.mealType)"></span>
+                                                                    <span x-show="entry.recipe?.doNotScale" class="text-orange-400 ml-1">(stała porcja)</span>
                                                                 </p>
                                                             </div>
                                                             <div class="flex gap-2">
@@ -1065,7 +1113,7 @@
                                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                                                     </svg>
                                                                 </button>
-                                                                <button x-show="selectedPlan?.persons && selectedPlan.persons.length > 0"
+                                                                <button x-show="selectedPlan?.persons && selectedPlan.persons.length > 0 && !entry.recipe?.doNotScale"
                                                                         @click="scaleRecipeForPlan(entry.id)"
                                                                         :disabled="entry.scaling"
                                                                         :class="entry.scaled ? 'text-purple-400 hover:text-purple-300' : 'text-yellow-400 hover:text-yellow-300'"
@@ -1079,6 +1127,56 @@
                                                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                                                     </svg>
                                                                 </button>
+                                                                <!-- Swap meal with another day button -->
+                                                                <div class="relative flex-shrink-0">
+                                                                    <button @click.stop="showSwapMealMenu = !showSwapMealMenu"
+                                                                            class="text-orange-400 hover:text-orange-300"
+                                                                            title="Zamień posiłek z innym dniem">
+                                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                                                        </svg>
+                                                                    </button>
+                                                                    <!-- Swap meal dropdown -->
+                                                                    <div x-show="showSwapMealMenu"
+                                                                         @click.away="showSwapMealMenu = false"
+                                                                         x-transition
+                                                                         class="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 max-w-xs min-w-[250px] max-h-[400px] overflow-y-auto">
+                                                                        <div class="p-2">
+                                                                            <div class="px-2 py-1 text-xs font-semibold text-gray-400 border-b border-gray-700 mb-1">Zamień z posiłkiem:</div>
+                                                                            <!-- List all days and their entries -->
+                                                                            <template x-for="otherDay in selectedPlan?.days" :key="otherDay.id">
+                                                                                <div>
+                                                                                    <!-- Day header (only if has entries and is not same day OR is same day but has more than 1 entry) -->
+                                                                                    <template x-if="otherDay.entries && otherDay.entries.length > 0 && (otherDay.id !== day.id || otherDay.entries.length > 1)">
+                                                                                        <div>
+                                                                                            <div class="px-2 py-1 text-xs font-medium text-blue-300 mt-2 first:mt-0">
+                                                                                                <span x-text="getDayOfWeekName(otherDay.dayOfWeek)"></span>
+                                                                                                <span class="text-gray-500 ml-1" x-text="formatDate(otherDay.date)"></span>
+                                                                                            </div>
+                                                                                            <!-- Entries for this day -->
+                                                                                            <template x-for="otherEntry in otherDay.entries" :key="otherEntry.id">
+                                                                                                <button x-show="!(otherDay.id === day.id && otherEntry.id === entry.id)"
+                                                                                                        @click.stop="swapMealEntries(entry.id, day.id, otherEntry.id, otherDay.id); showSwapMealMenu = false"
+                                                                                                        class="w-full text-left px-2 py-1.5 text-xs text-white hover:bg-orange-600/20 rounded transition-colors">
+                                                                                                    <div class="flex items-center gap-2">
+                                                                                                        <img x-show="otherEntry.recipe?.imageUrl"
+                                                                                                             :src="otherEntry.recipe?.imageUrl"
+                                                                                                             :alt="otherEntry.recipe?.name"
+                                                                                                             class="w-8 h-8 rounded object-cover flex-shrink-0">
+                                                                                                        <div class="flex-1 min-w-0">
+                                                                                                            <div class="font-medium truncate" x-text="otherEntry.recipe?.name"></div>
+                                                                                                            <div class="text-gray-400" x-text="getMealTypeName(otherEntry.mealType)"></div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </button>
+                                                                                            </template>
+                                                                                        </div>
+                                                                                    </template>
+                                                                                </div>
+                                                                            </template>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
                                                                 <button @click="removeRecipeFromDay(day.id, entry.id)"
                                                                         class="text-red-400 hover:text-red-300 flex-shrink-0"
                                                                         title="Usuń z planu">
@@ -1541,19 +1639,8 @@
                                    @change="saveAIModelSettings('recipeScaling')"
                                    placeholder="gemini-2.5-flash"
                                    class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
-                            <p class="text-xs text-gray-400 mt-1">Model używany do inteligentnego skalowania składników przepisów</p>
+                            <p class="text-xs text-gray-400 mt-1">Model używany do inteligentnego skalowania składników przepisów (w tym deserów)</p>
                             <p class="text-xs text-green-400 mt-1" x-show="false" x-ref="recipeScalingModelSaved">✓ Zapisano automatycznie</p>
-                        </div>
-
-                        <!-- Dessert Planning Model -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-2">Model Planowania Deserów</label>
-                            <input type="text" x-model="aiModelSettings.dessertPlanning.model"
-                                   @change="saveAIModelSettings('dessertPlanning')"
-                                   placeholder="gemini-2.5-flash"
-                                   class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
-                            <p class="text-xs text-gray-400 mt-1">Model używany do planowania porcji deserów dla wielu osób</p>
-                            <p class="text-xs text-green-400 mt-1" x-show="false" x-ref="dessertPlanningModelSaved">✓ Zapisano automatycznie</p>
                         </div>
                     </div>
                     <p class="text-xs text-gray-400 mt-4">💡 Klucze API są pobierane z aktywnego providera w sekcji "🤖 Providery AI do Ekstrakcji Przepisów"</p>
@@ -2056,6 +2143,21 @@
                                    placeholder="Nie podano"
                                    class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
                         </div>
+                    </div>
+
+                    <!-- Do Not Scale Checkbox -->
+                    <div class="bg-orange-900/20 border border-orange-600/30 rounded-lg p-4">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" x-model="editingRecipe.doNotScale"
+                                   class="mt-1 w-4 h-4 text-orange-600 bg-gray-900 border-gray-600 rounded focus:ring-orange-500">
+                            <div class="flex-1">
+                                <span class="text-sm font-medium text-orange-300">Nie skaluj tego przepisu</span>
+                                <p class="text-xs text-gray-400 mt-1">
+                                    Zaznacz dla przepisów, które zawsze mają być w tej samej ilości (np. odżywki białkowe, suplementy, napoje).
+                                    Przepis nie będzie skalowany do celów kalorycznych w planach posiłków.
+                                </p>
+                            </div>
+                        </label>
                     </div>
 
                     <!-- Buttons -->

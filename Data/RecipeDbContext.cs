@@ -193,6 +193,7 @@ public class RecipeDbContext : IDisposable
         var hasServings = false;
         var hasAlternateMealType = false;
         var hasSourcePdfFile = false;
+        var hasDoNotScale = false;
         using (var reader = checkCommand.ExecuteReader())
         {
             while (reader.Read())
@@ -208,6 +209,8 @@ public class RecipeDbContext : IDisposable
                     hasAlternateMealType = true;
                 if (columnName == "SourcePdfFile")
                     hasSourcePdfFile = true;
+                if (columnName == "DoNotScale")
+                    hasDoNotScale = true;
             }
         }
 
@@ -287,6 +290,22 @@ public class RecipeDbContext : IDisposable
             {
                 alterCommand.ExecuteNonQuery();
                 Console.WriteLine("✅ Dodano kolumnę SourcePdfFile do tabeli Recipes");
+            }
+            catch
+            {
+                // Column might already exist, ignore error
+            }
+        }
+
+        // Add DoNotScale column if it doesn't exist
+        if (!hasDoNotScale)
+        {
+            var alterCommand = connection.CreateCommand();
+            alterCommand.CommandText = "ALTER TABLE Recipes ADD COLUMN DoNotScale INTEGER DEFAULT 0;";
+            try
+            {
+                alterCommand.ExecuteNonQuery();
+                Console.WriteLine("✅ Dodano kolumnę DoNotScale do tabeli Recipes");
             }
             catch
             {
@@ -585,8 +604,8 @@ public class RecipeDbContext : IDisposable
 
         var command = connection.CreateCommand();
         command.CommandText = @"
-            INSERT INTO Recipes (Name, Description, Ingredients, Instructions, Calories, Protein, Carbohydrates, Fat, MealType, AlternateMealType, CreatedAt, Servings, NutritionVariantsJson, SourcePdfFile)
-            VALUES (@name, @description, @ingredients, @instructions, @calories, @protein, @carbs, @fat, @mealType, @alternateMealType, @createdAt, @servings, @nutritionVariants, @sourcePdfFile)
+            INSERT INTO Recipes (Name, Description, Ingredients, Instructions, Calories, Protein, Carbohydrates, Fat, MealType, AlternateMealType, CreatedAt, Servings, NutritionVariantsJson, SourcePdfFile, DoNotScale)
+            VALUES (@name, @description, @ingredients, @instructions, @calories, @protein, @carbs, @fat, @mealType, @alternateMealType, @createdAt, @servings, @nutritionVariants, @sourcePdfFile, @doNotScale)
         ";
 
         command.Parameters.AddWithValue("@name", recipe.Name);
@@ -603,6 +622,7 @@ public class RecipeDbContext : IDisposable
         command.Parameters.AddWithValue("@servings", (object?)recipe.Servings ?? DBNull.Value);
         command.Parameters.AddWithValue("@nutritionVariants", (object?)recipe.NutritionVariantsJson ?? DBNull.Value);
         command.Parameters.AddWithValue("@sourcePdfFile", (object?)recipe.SourcePdfFile ?? DBNull.Value);
+        command.Parameters.AddWithValue("@doNotScale", recipe.DoNotScale ? 1 : 0);
 
         command.ExecuteNonQuery();
 
@@ -745,7 +765,8 @@ public class RecipeDbContext : IDisposable
                 Servings = reader.IsDBNull(13) ? null : reader.GetInt32(13),
                 NutritionVariantsJson = columnCount > 14 && !reader.IsDBNull(14) ? reader.GetString(14) : null,
                 SourcePdfFile = columnCount > 15 && !reader.IsDBNull(15) ? reader.GetString(15) : null,
-                AlternateMealType = columnCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null
+                AlternateMealType = columnCount > 16 && !reader.IsDBNull(16) ? (MealType?)reader.GetInt32(16) : null,
+                DoNotScale = columnCount > 17 && !reader.IsDBNull(17) && reader.GetInt32(17) == 1
             };
 
             // Debug: Log first recipe's NutritionVariantsJson
@@ -908,7 +929,8 @@ public class RecipeDbContext : IDisposable
                 AlternateMealType = @alternateMealType,
                 Servings = @servings,
                 NutritionVariantsJson = @nutritionVariants,
-                SourcePdfFile = @sourcePdfFile
+                SourcePdfFile = @sourcePdfFile,
+                DoNotScale = @doNotScale
             WHERE Id = @id
         ";
 
@@ -926,6 +948,7 @@ public class RecipeDbContext : IDisposable
         command.Parameters.AddWithValue("@servings", (object?)recipe.Servings ?? DBNull.Value);
         command.Parameters.AddWithValue("@nutritionVariants", (object?)recipe.NutritionVariantsJson ?? DBNull.Value);
         command.Parameters.AddWithValue("@sourcePdfFile", (object?)recipe.SourcePdfFile ?? DBNull.Value);
+        command.Parameters.AddWithValue("@doNotScale", recipe.DoNotScale ? 1 : 0);
 
         return command.ExecuteNonQuery() > 0;
     }
