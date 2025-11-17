@@ -105,7 +105,19 @@ public class OpenAIShoppingListService : IShoppingListService
         promptBuilder.AppendLine("   - łyżki/łyżeczki sumuj");
         promptBuilder.AppendLine("   - mililitry (ml) sumuj, powyżej 1000ml zamień na litry (l)");
         promptBuilder.AppendLine("3. **Jeśli nie jesteś pewien** czy składniki są identyczne - **zostaw osobno!**");
-        promptBuilder.AppendLine("4. **Grupuj według kategorii** (warzywa, mięso, nabiał, przyprawy, etc.)");
+        promptBuilder.AppendLine("4. **Grupuj według kategorii** - wybierz najbardziej odpowiednią:");
+        promptBuilder.AppendLine("   - **warzywa** - świeże warzywa (pomidory, ogórki, papryka itp.)");
+        promptBuilder.AppendLine("   - **owoce** - świeże i suszone owoce");
+        promptBuilder.AppendLine("   - **mięso i wędliny** - mięso, drób, wędliny");
+        promptBuilder.AppendLine("   - **ryby** - ryby i owoce morza");
+        promptBuilder.AppendLine("   - **nabiał** - mleko, sery, jogurty, masło");
+        promptBuilder.AppendLine("   - **pieczywo** - chleb, bułki, pita");
+        promptBuilder.AppendLine("   - **makarony i kasze** - makaron, ryż, kasza, płatki");
+        promptBuilder.AppendLine("   - **spożywka** - oleje, mąki, cukier, sól, musztarda, ketchup, dodatki");
+        promptBuilder.AppendLine("   - **przyprawy** - przyprawy i zioła");
+        promptBuilder.AppendLine("   - **napoje** - soki, woda, napoje");
+        promptBuilder.AppendLine("   - **chemia** - środki czystości, papier toaletowy, ręczniki papierowe");
+        promptBuilder.AppendLine("   - **inne** - wszystko co nie pasuje do innych kategorii");
         promptBuilder.AppendLine("5. **Zaokrąglaj** ilości do praktycznych wartości (np. 125g → 125g, 1250g → 1.25kg)");
         promptBuilder.AppendLine();
         promptBuilder.AppendLine("**PRZEPISY DO PRZETWORZENIA:**");
@@ -128,7 +140,7 @@ public class OpenAIShoppingListService : IShoppingListService
     {
       ""name"": ""nazwa składnika"",
       ""quantity"": ""ilość z jednostką"",
-      ""category"": ""kategoria (warzywa/mięso/nabiał/przyprawy/inne)""
+      ""category"": ""kategoria""
     }
   ]
 }");
@@ -137,9 +149,12 @@ public class OpenAIShoppingListService : IShoppingListService
         promptBuilder.AppendLine(@"{
   ""items"": [
     {""name"": ""cebula"", ""quantity"": ""2 szt"", ""category"": ""warzywa""},
-    {""name"": ""pierś z kurczaka"", ""quantity"": ""500g"", ""category"": ""mięso""},
-    {""name"": ""udko z kurczaka"", ""quantity"": ""300g"", ""category"": ""mięso""},
-    {""name"": ""mąka pszenna"", ""quantity"": ""1kg"", ""category"": ""inne""}
+    {""name"": ""pierś z kurczaka"", ""quantity"": ""500g"", ""category"": ""mięso i wędliny""},
+    {""name"": ""udko z kurczaka"", ""quantity"": ""300g"", ""category"": ""mięso i wędliny""},
+    {""name"": ""mąka pszenna"", ""quantity"": ""1kg"", ""category"": ""spożywka""},
+    {""name"": ""chleb"", ""quantity"": ""1 szt"", ""category"": ""pieczywo""},
+    {""name"": ""olej rzepakowy"", ""quantity"": ""500ml"", ""category"": ""spożywka""},
+    {""name"": ""płyn do mycia naczyń"", ""quantity"": ""1 szt"", ""category"": ""chemia""}
   ]
 }");
 
