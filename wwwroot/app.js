@@ -1667,6 +1667,12 @@ function appData() {
 
             if (!entry) return;
 
+            // Check if recipe has DoNotScale flag
+            if (entry.recipe?.doNotScale) {
+                this.showNotification('Ten przepis ma stałą porcję i nie może być skalowany', 'warning');
+                return;
+            }
+
             entry.scaling = true;
 
             try {
