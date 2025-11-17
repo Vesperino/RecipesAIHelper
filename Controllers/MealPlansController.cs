@@ -1219,10 +1219,15 @@ public class MealPlansController : ControllerBase
                 Console.WriteLine($"   👥 Plan ma {plan.Persons!.Count} osób - używam przeskalowanych składników");
             }
 
-            // Collect all recipes from all days
-            var allRecipes = new List<Recipe>();
+            // Group recipes by day number (for chunked generation)
+            var recipesByDay = new Dictionary<int, List<Recipe>>();
+            int dayIndex = 1;
+
             foreach (var day in plan.Days)
             {
+                if (!recipesByDay.ContainsKey(dayIndex))
+                    recipesByDay[dayIndex] = new List<Recipe>();
+
                 if (day.Entries != null)
                 {
                     foreach (var entry in day.Entries)
@@ -1233,18 +1238,15 @@ public class MealPlansController : ControllerBase
                         if (hasPersons && entry.ScaledRecipes != null && entry.ScaledRecipes.Count > 0)
                         {
                             // Aggregate scaled ingredients from all persons for this entry
+                            // OPCJA B: BEZ nagłówków osobowych - tylko składniki
                             var allScaledIngredients = new List<string>();
 
                             foreach (var scaledRecipe in entry.ScaledRecipes)
                             {
                                 if (scaledRecipe.ScaledIngredients != null && scaledRecipe.ScaledIngredients.Count > 0)
                                 {
-                                    var personName = scaledRecipe.Person?.Name ?? "Osoba";
-
-                                    // Add header for this person (for AI context)
-                                    allScaledIngredients.Add($"=== {personName} (porcja przeskalowana) ===");
+                                    // Dodaj składniki bez nagłówka osoby
                                     allScaledIngredients.AddRange(scaledRecipe.ScaledIngredients);
-                                    allScaledIngredients.Add(""); // Empty line for separation
                                 }
                             }
 
@@ -1260,37 +1262,40 @@ public class MealPlansController : ControllerBase
                                     MealType = entry.Recipe.MealType
                                 };
 
-                                allRecipes.Add(pseudoRecipe);
-                                Console.WriteLine($"      ✓ {entry.Recipe.Name}: używam składników dla {entry.ScaledRecipes.Count} osób");
+                                recipesByDay[dayIndex].Add(pseudoRecipe);
+                                Console.WriteLine($"      ✓ Dzień {dayIndex}: {entry.Recipe.Name} (składniki dla {entry.ScaledRecipes.Count} osób)");
                             }
                             else
                             {
                                 // Fallback to base recipe if scaled ingredients are empty
-                                allRecipes.Add(entry.Recipe);
-                                Console.WriteLine($"      ⚠️ {entry.Recipe.Name}: brak przeskalowanych składników, używam bazowych");
+                                recipesByDay[dayIndex].Add(entry.Recipe);
+                                Console.WriteLine($"      ⚠️ Dzień {dayIndex}: {entry.Recipe.Name} - brak przeskalowanych składników, używam bazowych");
                             }
                         }
                         else
                         {
                             // Use base recipe (no persons or no scaled recipes)
-                            allRecipes.Add(entry.Recipe);
+                            recipesByDay[dayIndex].Add(entry.Recipe);
                         }
                     }
                 }
+
+                dayIndex++;
             }
 
-            if (allRecipes.Count == 0)
+            if (recipesByDay.Count == 0 || recipesByDay.Values.All(recipes => recipes.Count == 0))
                 return BadRequest(new { error = "Meal plan has no recipes" });
 
-            Console.WriteLine($"   Znaleziono {allRecipes.Count} przepisów w planie");
+            var totalRecipes = recipesByDay.Values.Sum(recipes => recipes.Count);
+            Console.WriteLine($"   Znaleziono {totalRecipes} przepisów w {recipesByDay.Count} dniach");
 
             // Create shopping list service using factory
             var shoppingListService = _shoppingListFactory.CreateShoppingListService();
             if (shoppingListService == null)
                 return BadRequest(new { error = "Shopping list service not configured. Configure provider and API key in Settings." });
 
-            // Generate shopping list
-            var shoppingList = await shoppingListService.GenerateShoppingListAsync(allRecipes);
+            // Generate shopping list using day-by-day chunking
+            var shoppingList = await shoppingListService.GenerateShoppingListChunked(recipesByDay);
 
             if (shoppingList == null || shoppingList.Items.Count == 0)
                 return StatusCode(500, new { error = "Failed to generate shopping list" });
@@ -1308,7 +1313,7 @@ public class MealPlansController : ControllerBase
                 message = "Shopping list generated and saved successfully",
                 id = savedList.Id,
                 mealPlanName = plan.Name,
-                recipeCount = allRecipes.Count,
+                recipeCount = totalRecipes,
                 itemCount = shoppingList.Items.Count,
                 generatedAt = savedList.GeneratedAt,
                 items = shoppingList.Items,

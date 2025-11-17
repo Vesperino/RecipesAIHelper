@@ -5,7 +5,8 @@
       "Bash(dir /b)",
       "Bash(dir /s /b /a:d .git)",
       "Bash(git push:*)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(dotnet build:*)"
     ],
     "deny": [],
     "ask": []
