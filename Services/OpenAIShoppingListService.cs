@@ -1,25 +1,32 @@
 using System.Text;
 using System.Text.Json;
-using Mscc.GenerativeAI;
+using OpenAI;
+using OpenAI.Chat;
+using System.ClientModel;
 using RecipesAIHelper.Models;
 
 namespace RecipesAIHelper.Services;
 
 /// <summary>
-/// Service for generating shopping lists using AI aggregation
+/// Service for generating shopping lists using OpenAI (GPT models)
 /// </summary>
-public class ShoppingListService
+public class OpenAIShoppingListService : IShoppingListService
 {
-    private readonly GoogleAI _genAi;
-    private readonly GenerativeModel _model;
+    private readonly ChatClient _chatClient;
+    private readonly string _modelName;
 
-    public ShoppingListService(string apiKey, string modelName = "gemini-2.5-flash")
+    public OpenAIShoppingListService(string apiKey, string modelName = "gpt-5-mini-2025-08-07")
     {
-        _genAi = new GoogleAI(apiKey);
-        _model = _genAi.GenerativeModel(model: modelName);
-        _model.Timeout = TimeSpan.FromMinutes(2);
+        _modelName = modelName;
 
-        Console.WriteLine($"✅ ShoppingListService zainicjalizowany ({modelName})");
+        // Create client with extended timeout
+        var clientOptions = new OpenAIClientOptions
+        {
+            NetworkTimeout = TimeSpan.FromMinutes(2)
+        };
+        _chatClient = new ChatClient(modelName, new ApiKeyCredential(apiKey), clientOptions);
+
+        Console.WriteLine($"✅ OpenAIShoppingListService zainicjalizowany ({modelName})");
     }
 
     /// <summary>
@@ -33,8 +40,14 @@ public class ShoppingListService
 
             var prompt = BuildShoppingListPrompt(recipes);
 
-            var response = await _model.GenerateContent(prompt);
-            var responseText = response?.Text?.Trim() ?? "";
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage("Jesteś ekspertem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu."),
+                new UserChatMessage(prompt)
+            };
+
+            var chatCompletion = await _chatClient.CompleteChatAsync(messages);
+            var responseText = chatCompletion.Value.Content[0].Text.Trim();
 
             if (string.IsNullOrEmpty(responseText))
             {
@@ -132,17 +145,4 @@ public class ShoppingListService
 
         return promptBuilder.ToString();
     }
-}
-
-// Response models for Shopping List
-public class ShoppingListResponse
-{
-    public List<ShoppingListItem> Items { get; set; } = new();
-}
-
-public class ShoppingListItem
-{
-    public string Name { get; set; } = string.Empty;
-    public string Quantity { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
 }

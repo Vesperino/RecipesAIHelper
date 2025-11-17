@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Mscc.GenerativeAI;
+using OpenAI;
+using OpenAI.Chat;
+using System.ClientModel;
 using Polly;
 using Polly.Retry;
 using RecipesAIHelper.Models;
@@ -9,28 +11,29 @@ using RecipesAIHelper.Models;
 namespace RecipesAIHelper.Services;
 
 /// <summary>
-/// Service for scaling recipe ingredients using AI
+/// Service for scaling recipe ingredients using OpenAI (GPT models)
 /// </summary>
-public class RecipeScalingService
+public class OpenAIRecipeScalingService : IRecipeScalingService
 {
-    private readonly GoogleAI _genAi;
-    private readonly GenerativeModel _model;
+    private readonly ChatClient _chatClient;
+    private readonly string _modelName;
     private readonly AsyncRetryPolicy _retryPolicy;
     private static readonly SemaphoreSlim _rateLimiter = new(1, 1); // Rate limiting
 
-    public RecipeScalingService(string apiKey, string modelName = "gemini-2.5-flash")
+    public OpenAIRecipeScalingService(string apiKey, string modelName = "gpt-5-mini-2025-08-07")
     {
-        _genAi = new GoogleAI(apiKey);
-        _model = _genAi.GenerativeModel(model: modelName);
-        _model.Timeout = TimeSpan.FromMinutes(2);
+        _modelName = modelName;
 
-        // Retry policy: 3 attempts with exponential backoff + jitter
+        // Create client with extended timeout
+        var clientOptions = new OpenAIClientOptions
+        {
+            NetworkTimeout = TimeSpan.FromMinutes(2)
+        };
+        _chatClient = new ChatClient(modelName, new ApiKeyCredential(apiKey), clientOptions);
+
+        // Retry policy: 3 attempts with exponential backoff
         _retryPolicy = Policy
-            .Handle<Exception>(ex =>
-                ex.Message.Contains("503") ||
-                ex.Message.Contains("overloaded") ||
-                ex.Message.Contains("UNAVAILABLE") ||
-                ex.Message.Contains("RESOURCE_EXHAUSTED"))
+            .Handle<Exception>(ex => ex is not OperationCanceledException)
             .WaitAndRetryAsync(
                 retryCount: 3,
                 sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000)),
@@ -39,7 +42,7 @@ public class RecipeScalingService
                     Console.WriteLine($"   ⚠️ Retry {retryCount}/3 po {timeSpan.TotalSeconds:F1}s: {exception.Message}");
                 });
 
-        Console.WriteLine($"✅ RecipeScalingService zainicjalizowany ({modelName})");
+        Console.WriteLine($"✅ OpenAIRecipeScalingService zainicjalizowany ({modelName})");
     }
 
     /// <summary>
@@ -61,8 +64,15 @@ public class RecipeScalingService
             var result = await _retryPolicy.ExecuteAsync(async () =>
             {
                 var prompt = BuildScalingPrompt(baseRecipe, scalingFactor, mealType);
-                var response = await _model.GenerateContent(prompt);
-                var responseText = response?.Text?.Trim() ?? "";
+
+                var messages = new List<ChatMessage>
+                {
+                    new SystemChatMessage("Jesteś ekspertem od skalowania przepisów kulinarnych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu."),
+                    new UserChatMessage(prompt)
+                };
+
+                var chatCompletion = await _chatClient.CompleteChatAsync(messages);
+                var responseText = chatCompletion.Value.Content[0].Text.Trim();
 
                 // Debug logging - ZAWSZE pokazuj pełną odpowiedź
                 if (string.IsNullOrEmpty(responseText))
@@ -161,13 +171,4 @@ public class RecipeScalingService
 
         return promptBuilder.ToString();
     }
-}
-
-/// <summary>
-/// Response model for scaling API
-/// </summary>
-public class ScalingResponse
-{
-    [JsonPropertyName("scaledIngredients")]
-    public List<string> ScaledIngredients { get; set; } = new();
 }

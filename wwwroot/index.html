@@ -690,6 +690,18 @@
                                     <span x-text="isScalingRecipes ? 'Skalowanie...' : 'Skaluj przepisy'"></span>
                                 </button>
                             </template>
+                            <!-- Delete Scaling Button (only shown when plan has persons) -->
+                            <template x-if="selectedPlan?.persons && selectedPlan.persons.length > 0">
+                                <button @click="deleteScaling()"
+                                        :disabled="isDeletingScaling"
+                                        class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2"
+                                        title="Usuń wszystkie przeskalowane przepisy - zacznij skalowanie od nowa">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                    <span x-text="isDeletingScaling ? 'Usuwanie...' : 'Usuń skalowanie'"></span>
+                                </button>
+                            </template>
                             <button @click="generateShoppingList()"
                                     :disabled="isGeneratingShoppingList"
                                     class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2">
@@ -934,7 +946,7 @@
                                                     </button>
 
                                                     <div x-show="showVariants" x-transition class="mt-2 pl-4 space-y-1 border-l-2 border-blue-600">
-                                                        <template x-for="variant in recipe.nutritionVariants" :key="variant.label">
+                                                        <template x-for="(variant, index) in recipe.nutritionVariants" :key="`variant-${recipe.id}-${index}`">
                                                             <div class="text-gray-400">
                                                                 <span class="font-medium text-white" x-text="variant.label"></span>:
                                                                 <span x-text="variant.calories"></span>kcal,
@@ -1219,7 +1231,7 @@
                                                                 </button>
 
                                                                 <div x-show="entry.showVariants" x-transition class="mt-2 pl-4 space-y-1 border-l-2 border-blue-600">
-                                                                    <template x-for="variant in entry.recipe.nutritionVariants" :key="variant.label">
+                                                                    <template x-for="(variant, index) in entry.recipe.nutritionVariants" :key="`variant-${entry.id}-${index}`">
                                                                         <div class="text-gray-400">
                                                                             <span class="font-medium text-white" x-text="variant.label"></span>:
                                                                             <span x-text="variant.calories"></span>kcal,
@@ -1624,37 +1636,82 @@
             <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg border border-gray-700 p-6">
                 <div class="flex items-center justify-between mb-6">
                     <div>
-                        <h2 class="text-2xl font-bold text-white">🤖 Modele AI do Planowania Posiłków</h2>
-                        <p class="text-gray-400 text-sm mt-1">Konfiguracja modeli AI używanych do skalowania przepisów i planowania deserów</p>
+                        <h2 class="text-2xl font-bold text-white">🍽️ Modele AI do Jadłospisu</h2>
+                        <p class="text-gray-400 text-sm mt-1">Konfiguracja modeli AI używanych przy planowaniu posiłków</p>
                     </div>
                 </div>
 
-                <div class="mb-6">
-                    <h3 class="text-lg font-bold text-white mb-3">⚙️ Wybór Modeli</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Recipe Scaling Model -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-300 mb-2">Model Skalowania Przepisów</label>
-                            <input type="text" x-model="aiModelSettings.recipeScaling.model"
-                                   @change="saveAIModelSettings('recipeScaling')"
-                                   placeholder="gemini-2.5-flash"
-                                   class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
-                            <p class="text-xs text-gray-400 mt-1">Model używany do inteligentnego skalowania składników przepisów (w tym deserów)</p>
-                            <p class="text-xs text-green-400 mt-1" x-show="false" x-ref="recipeScalingModelSaved">✓ Zapisano automatycznie</p>
+                <!-- Section 1: Recipe Scaling -->
+                <div class="mb-8 pb-8 border-b border-gray-700">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <span class="text-blue-400">📏</span>
+                        Skalowanie Przepisów
+                    </h3>
+                    <p class="text-sm text-gray-400 mb-4">Model używany do inteligentnego dostosowywania ilości składników do liczby osób</p>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Provider</label>
+                                <select x-model="aiModelSettings.recipeScaling.provider"
+                                        @change="saveAIModelSettings('recipeScaling')"
+                                        class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                                    <option value="Gemini">Google Gemini</option>
+                                    <option value="OpenAI">OpenAI</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Model</label>
+                                <input type="text" x-model="aiModelSettings.recipeScaling.model"
+                                       @change="saveAIModelSettings('recipeScaling')"
+                                       :placeholder="aiModelSettings.recipeScaling.provider === 'OpenAI' ? 'gpt-5-mini-2025-08-07' : 'gemini-2.5-flash'"
+                                       class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                            </div>
                         </div>
+                        <p class="text-xs text-green-400" x-show="false" x-ref="recipeScalingModelSaved">✓ Zapisano automatycznie</p>
                     </div>
-                    <p class="text-xs text-gray-400 mt-4">💡 Klucze API są pobierane z aktywnego providera w sekcji "🤖 Providery AI do Ekstrakcji Przepisów"</p>
                 </div>
 
-                <!-- Help Section -->
-                <div class="mt-6 bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
-                    <h4 class="text-white font-medium mb-2">📚 Wskazówki:</h4>
+                <!-- Section 2: Shopping List -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <span class="text-green-400">🛒</span>
+                        Lista Zakupów
+                    </h3>
+                    <p class="text-sm text-gray-400 mb-4">Model używany do agregacji i grupowania składników na liście zakupowej</p>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Provider</label>
+                                <select x-model="aiModelSettings.shoppingList.provider"
+                                        @change="saveAIModelSettings('shoppingList')"
+                                        class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                                    <option value="Gemini">Google Gemini</option>
+                                    <option value="OpenAI">OpenAI</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Model</label>
+                                <input type="text" x-model="aiModelSettings.shoppingList.model"
+                                       @change="saveAIModelSettings('shoppingList')"
+                                       :placeholder="aiModelSettings.shoppingList.provider === 'OpenAI' ? 'gpt-5-mini-2025-08-07' : 'gemini-2.5-flash'"
+                                       class="w-full bg-gray-900/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 outline-none">
+                            </div>
+                        </div>
+                        <p class="text-xs text-green-400" x-show="false" x-ref="shoppingListModelSaved">✓ Zapisano automatycznie</p>
+                    </div>
+                </div>
+
+                <!-- Info Section -->
+                <div class="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4">
+                    <h4 class="text-white font-medium mb-2">💡 Informacje:</h4>
                     <ul class="text-sm text-gray-300 space-y-1 list-disc list-inside">
-                        <li><strong>Modele zapisują się automatycznie</strong> - wystarczy wpisać nazwę i opuścić pole</li>
-                        <li>Możesz używać różnych modeli dla skalowania i deserów (np. szybszy model dla skalowania)</li>
-                        <li>Domyślnie: gemini-2.5-flash (szybki i tani model Google)</li>
-                        <li>Alternatywy: gemini-2.0-flash-exp, gemini-1.5-pro, gpt-4o (wymaga konfiguracji providera OpenAI)</li>
-                        <li>System używa klucza API z aktywnego providera skonfigurowanego powyżej</li>
+                        <li><strong>Zapis automatyczny</strong> - ustawienia zapisują się po zmianie providera lub modelu</li>
+                        <li><strong>Klucze API</strong> są pobierane z konfiguracji providerów (sekcja "Providery AI do Ekstrakcji PDF")</li>
+                        <li><strong>Google Gemini</strong>: gemini-2.5-flash, gemini-2.0-flash-exp, gemini-1.5-pro</li>
+                        <li><strong>OpenAI</strong>: gpt-5-mini-2025-08-07 (ekonomiczny), gpt-4o (najlepszy)</li>
+                        <li>Możesz użyć różnych modeli dla różnych funkcji (np. szybszy dla skalowania, dokładniejszy dla listy)</li>
                     </ul>
                 </div>
             </div>
@@ -2402,7 +2459,7 @@
                             <div class="mt-6">
                                 <h5 class="text-md font-semibold text-gray-300 mb-3">Dodatkowe warianty:</h5>
                                 <div class="space-y-3">
-                                    <template x-for="variant in selectedRecipe.nutritionVariants" :key="variant.label">
+                                    <template x-for="(variant, index) in selectedRecipe.nutritionVariants" :key="`variant-${selectedRecipe.id}-${index}`">
                                         <div class="bg-gray-900/30 border border-gray-700 rounded-lg p-4">
                                             <div class="flex items-center justify-between mb-2">
                                                 <h6 class="font-semibold text-white" x-text="variant.label"></h6>
@@ -2782,6 +2839,103 @@
         </div>
     </div>
 
+    <!-- Scaling Resume Modal -->
+    <div x-show="showScalingResumeModal" x-cloak
+         class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+         @click.self="showScalingResumeModal = false">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-start justify-between mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-white mb-2">Wznowienie skalowania</h3>
+                        <p class="text-gray-400 text-sm">Znaleziono już przeskalowane przepisy w tym planie</p>
+                    </div>
+                    <button @click="showScalingResumeModal = false"
+                            class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Status Summary -->
+                    <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                        <h4 class="text-lg font-bold text-white mb-3">Status skalowania</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-400">Całkowita liczba do przeskalowania:</p>
+                                <p class="text-white font-bold text-lg" x-text="scalingStatus?.totalNeeded || 0"></p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400">Już przeskalowane:</p>
+                                <p class="text-green-400 font-bold text-lg" x-text="scalingStatus?.scaledCount || 0"></p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400">Brakujące:</p>
+                                <p class="text-yellow-400 font-bold text-lg" x-text="scalingStatus?.missingCount || 0"></p>
+                            </div>
+                            <div>
+                                <p class="text-gray-400">Potrzebne skalowanie:</p>
+                                <p class="font-bold text-lg"
+                                   :class="scalingStatus?.needsScaling ? 'text-yellow-400' : 'text-green-400'"
+                                   x-text="scalingStatus?.needsScaling ? 'Tak' : 'Nie'"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Missing Details (if any) -->
+                    <div x-show="scalingStatus?.unscaledDetails && scalingStatus.unscaledDetails.length > 0"
+                         class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                        <h4 class="text-lg font-bold text-white mb-3">Przepisy do przeskalowania:</h4>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(detail, index) in scalingStatus?.unscaledDetails || []" :key="index">
+                                <div class="flex items-center gap-2 text-sm p-2 bg-gray-800/50 rounded">
+                                    <svg class="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span class="text-white" x-text="detail.recipeName"></span>
+                                    <span class="text-gray-400">dla</span>
+                                    <span class="text-blue-400" x-text="detail.personName"></span>
+                                    <span class="text-gray-500 text-xs ml-auto" x-text="detail.dayDate"></span>
+                                </div>
+                            </template>
+                            <p x-show="scalingStatus?.hasMore" class="text-xs text-gray-500 text-center pt-2">
+                                ... i więcej
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-4">
+                        <button @click="performScaling(true)"
+                                :disabled="isScalingRecipes"
+                                class="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span>Skaluj wszystko od nowa</span>
+                        </button>
+                        <button @click="performScaling(false)"
+                                :disabled="isScalingRecipes || !scalingStatus?.needsScaling"
+                                class="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span>Kontynuuj brakujące</span>
+                        </button>
+                    </div>
+
+                    <!-- Explanation -->
+                    <div class="text-xs text-gray-400 bg-gray-900/30 rounded-lg p-3 border border-gray-700">
+                        <p class="mb-2"><strong class="text-red-400">Skaluj wszystko od nowa:</strong> Usuwa wszystkie przeskalowane przepisy i skaluje je na nowo dla wszystkich osób.</p>
+                        <p><strong class="text-green-400">Kontynuuj brakujące:</strong> Zachowuje już przeskalowane przepisy i skaluje tylko te, które jeszcze nie zostały przeskalowane (np. po błędach API).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Notifications -->
     <div class="fixed bottom-4 right-4 z-50 space-y-2">
         <template x-for="(notification, index) in notifications" :key="index">
@@ -2804,6 +2958,6 @@
         </template>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=2"></script>
 </body>
 </html>
