@@ -65,6 +65,9 @@ wwwroot/images/
 # Logs
 *.log
 
+# Debug files
+shopping_list_debug.json
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -1,0 +1,11 @@
+{
+  "Timestamp": "2025-11-17T14:30:00",
+  "Provider": "OpenAI",
+  "ModelName": "gpt-5-mini-2025-08-07",
+  "RecipeCount": 3,
+  "PromptSent": "[SYSTEM MESSAGE]\nJesteś ekspertem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu.\n\n[USER PROMPT]\nJesteś asystentem do tworzenia list zakupowych.\n\n**ZADANIE:**\nNa podstawie poniższych przepisów wygeneruj zagregowaną listę zakupów.\n\n**ZASADY AGREGACJI:**\n1. **Łącz tylko identyczne składniki** - np. 'pierś z kurczaka' ≠ 'udko z kurczaka' (nie łącz!)\n2. **Rozpoznawaj jednostki** i sumuj je:\n   - gramy (g) sumuj do gramów, powyżej 1000g zamień na kilogramy (kg)\n   - sztuki (szt) sumuj\n   - łyżki/łyżeczki sumuj\n   - mililitry (ml) sumuj, powyżej 1000ml zamień na litry (l)\n3. **Jeśli nie jesteś pewien** czy składniki są identyczne - **zostaw osobno!**\n4. **Grupuj według kategorii** - wybierz najbardziej odpowiednią\n5. **Zaokrąglaj** ilości do praktycznych wartości\n\n**PRZEPISY DO PRZETWORZENIA:**\n\n## Przepis 1: Kurczak z warzywami\n**Składniki:**\n- 500g piersi z kurczaka\n- 2 cebule\n- 3 marchewki\n- 200ml śmietany\n\n## Przepis 2: Sałatka grecka\n**Składniki:**\n- 2 pomidory\n- 1 ogórek\n- 100g sera feta\n- oliwa z oliwek\n\n## Przepis 3: Omlet\n**Składniki:**\n- 4 jajka\n- 100ml mleka\n- 1 cebula\n\n**FORMAT ODPOWIEDZI:**\nZwróć odpowiedź w formacie JSON\n...",
+  "ResponseReceived": "{\n  \"items\": [\n    {\"name\": \"pierś z kurczaka\", \"quantity\": \"500g\", \"category\": \"mięso i wędliny\"},\n    {\"name\": \"cebula\", \"quantity\": \"3 szt\", \"category\": \"warzywa\"},\n    {\"name\": \"marchewka\", \"quantity\": \"3 szt\", \"category\": \"warzywa\"},\n    {\"name\": \"śmietana\", \"quantity\": \"200ml\", \"category\": \"nabiał\"},\n    {\"name\": \"pomidor\", \"quantity\": \"2 szt\", \"category\": \"warzywa\"},\n    {\"name\": \"ogórek\", \"quantity\": \"1 szt\", \"category\": \"warzywa\"},\n    {\"name\": \"ser feta\", \"quantity\": \"100g\", \"category\": \"nabiał\"},\n    {\"name\": \"oliwa z oliwek\", \"quantity\": \"według uznania\", \"category\": \"spożywka\"},\n    {\"name\": \"jajka\", \"quantity\": \"4 szt\", \"category\": \"nabiał\"},\n    {\"name\": \"mleko\", \"quantity\": \"100ml\", \"category\": \"nabiał\"}\n  ]\n}",
+  "ItemsGenerated": 10,
+  "Success": true,
+  "ErrorMessage": null
+}

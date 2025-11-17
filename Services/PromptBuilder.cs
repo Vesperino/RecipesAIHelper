@@ -361,4 +361,136 @@ Zwróć TYLKO JSON (bez markdown, bez ```json):
                $"Przeanalizuj CAŁY dokument i wyekstraktuj WSZYSTKIE przepisy.\n" +
                $"WAŻNE: Ekstraktuj WSZYSTKIE wiersze z tabel wartości odżywczych do pola nutritionVariants!";
     }
+
+    /// <summary>
+    /// Buduje prompt dla generowania listy zakupów z przepisów jednego dnia
+    /// </summary>
+    public static string BuildDailyShoppingListPrompt(List<Recipe> recipes, int dayNumber)
+    {
+        var prompt = $@"ZADANIE: Wygeneruj listę zakupów dla DNIA {dayNumber}
+
+PRZEPISY Z TEGO DNIA ({recipes.Count} szt):
+
+";
+
+        // Dodaj wszystkie przepisy z tego dnia
+        for (int i = 0; i < recipes.Count; i++)
+        {
+            var recipe = recipes[i];
+            prompt += $@"## Przepis {i + 1}: {recipe.Name}
+{recipe.Ingredients}
+
+";
+        }
+
+        prompt += @"
+ZASADY AGREGACJI:
+1. **Łącz identyczne składniki** z WSZYSTKICH przepisów tego dnia i sumuj ich ilości
+2. **NIE łącz podobnych** ale różnych składników (np. ""pierś z kurczaka"" ≠ ""udko z kurczaka"")
+3. **Rozpoznawaj jednostki** i sumuj je prawidłowo:
+   - gramy (g) sumuj do gramów, powyżej 1000g zamień na kilogramy (kg)
+   - sztuki (szt) sumuj
+   - łyżki/łyżeczki sumuj (łyżka stołowa, łyżeczka, itp.)
+   - mililitry (ml) sumuj, powyżej 1000ml zamień na litry (l)
+4. **Jeśli składnik pojawia się wielokrotnie** w różnych przepisach - ZSUMUJ go
+5. **Kategoryzuj składniki** - wybierz najbardziej odpowiednią kategorię:
+   - **warzywa** - świeże warzywa (pomidory, ogórki, papryka, cebula, czosnek, itp.)
+   - **owoce** - świeże i suszone owoce
+   - **mięso i wędliny** - mięso, drób, wędliny
+   - **ryby** - ryby i owoce morza
+   - **nabiał** - mleko, sery, jogurty, masło, jajka, śmietana
+   - **pieczywo** - chleb, bułki, pita
+   - **makarony i kasze** - makaron, ryż, kasza, płatki
+   - **spożywka** - oleje, mąki, cukier, sól, musztarda, ketchup, ocet, sos sojowy
+   - **przyprawy** - przyprawy i zioła
+   - **napoje** - soki, woda, napoje
+   - **chemia** - środki czystości, papier toaletowy, ręczniki papierowe
+   - **inne** - wszystko co nie pasuje do innych kategorii
+6. **Zaokrąglaj ilości** do praktycznych wartości (np. 125g → 125g, 1250g → 1.25kg)
+
+PRZYKŁAD AGREGACJI:
+Jeśli w przepisach tego dnia cebula pojawia się 3 razy:
+- Przepis 1: ""1 cebula""
+- Przepis 2: ""2 cebule""
+- Przepis 3: ""1 cebula""
+Wynik: cebula: 4 szt
+
+FORMAT ODPOWIEDZI:
+MUSISZ zwrócić obiekt JSON z kluczem ""items"" zawierającym tablicę:
+
+{
+  ""items"": [
+    {""name"": ""cebula"", ""quantity"": ""4 szt"", ""category"": ""warzywa""},
+    {""name"": ""jajka"", ""quantity"": ""6 szt"", ""category"": ""nabiał""},
+    {""name"": ""pierś z kurczaka"", ""quantity"": ""500g"", ""category"": ""mięso i wędliny""}
+  ]
+}
+
+WAŻNE:
+- Zwróć TYLKO JSON, bez markdown (bez ```json), bez dodatkowego tekstu
+- Odpowiedź MUSI zaczynać się od {{ (obiekt), NIE od [ (tablica)
+- MUSI zawierać klucz ""items"" z tablicą składników wewnątrz";
+
+        return prompt;
+    }
+
+    /// <summary>
+    /// Buduje prompt dla mergowania list zakupów z wielu dni
+    /// </summary>
+    public static string BuildMergeShoppingListsPrompt(List<DailyShoppingList> dailyLists)
+    {
+        var prompt = $@"ZADANIE: Połącz listy zakupów z {dailyLists.Count} dni w jedną zagregowaną listę
+
+LISTY DZIENNE:
+
+";
+
+        // Dodaj wszystkie dzienne listy
+        foreach (var dayList in dailyLists.OrderBy(d => d.Day))
+        {
+            prompt += $@"=== DZIEŃ {dayList.Day} ===
+";
+            foreach (var item in dayList.Items)
+            {
+                prompt += $"- {item.Name}: {item.Quantity} ({item.Category})\n";
+            }
+            prompt += "\n";
+        }
+
+        prompt += @"
+ZASADY MERGOWANIA:
+1. **Zsumuj identyczne składniki** z WSZYSTKICH dni
+2. **Rozpoznawaj jednostki** i sumuj je prawidłowo:
+   - gramy (g) sumuj, powyżej 1000g zamień na kilogramy (kg)
+   - sztuki (szt) sumuj
+   - łyżki/łyżeczki sumuj
+   - mililitry (ml) sumuj, powyżej 1000ml zamień na litry (l)
+3. **Zachowaj kategoryzację** z list dziennych
+4. **Zaokrąglaj** do praktycznych wartości
+
+PRZYKŁADY MERGOWANIA:
+- cebula: Dzień 1 (3 szt) + Dzień 2 (2 szt) + Dzień 5 (1 szt) = 6 szt
+- kurczak pierś: Dzień 1 (500g) + Dzień 3 (300g) + Dzień 6 (400g) = 1.2kg
+- pomidor: Dzień 2 (3 szt) + Dzień 3 (2 szt) = 5 szt
+- ryż: Dzień 4 (200g) + Dzień 7 (150g) = 350g
+
+FORMAT ODPOWIEDZI:
+MUSISZ zwrócić obiekt JSON z kluczem ""items"" zawierającym tablicę:
+
+{
+  ""items"": [
+    {""name"": ""cebula"", ""quantity"": ""6 szt"", ""category"": ""warzywa""},
+    {""name"": ""kurczak pierś"", ""quantity"": ""1.2kg"", ""category"": ""mięso i wędliny""},
+    {""name"": ""pomidor"", ""quantity"": ""5 szt"", ""category"": ""warzywa""},
+    {""name"": ""ryż"", ""quantity"": ""350g"", ""category"": ""makarony i kasze""}
+  ]
+}
+
+WAŻNE:
+- Zwróć TYLKO JSON, bez markdown (bez ```json), bez dodatkowego tekstu
+- Odpowiedź MUSI zaczynać się od {{ (obiekt), NIE od [ (tablica)
+- MUSI zawierać klucz ""items"" z tablicą składników wewnątrz";
+
+        return prompt;
+    }
 }

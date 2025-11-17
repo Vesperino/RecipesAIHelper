@@ -27,18 +27,34 @@ public class GeminiShoppingListService : IShoppingListService
     /// </summary>
     public async Task<ShoppingListResponse?> GenerateShoppingListAsync(List<Recipe> recipes)
     {
+        var debugLog = new ShoppingListDebugLog
+        {
+            Timestamp = DateTime.Now,
+            Provider = "Google Gemini",
+            ModelName = _model.Name,
+            RecipeCount = recipes.Count
+        };
+
         try
         {
             Console.WriteLine($"🛒 Generowanie listy zakupowej z {recipes.Count} przepisów...");
 
-            var prompt = BuildShoppingListPrompt(recipes);
+            var systemInstruction = "Jesteś asystentem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu.";
+            var taskPrompt = BuildShoppingListPrompt(recipes);
+            var prompt = $"{systemInstruction}\n\n{taskPrompt}";
+
+            debugLog.PromptSent = prompt;
 
             var response = await _model.GenerateContent(prompt);
             var responseText = response?.Text?.Trim() ?? "";
+            debugLog.ResponseReceived = responseText;
 
             if (string.IsNullOrEmpty(responseText))
             {
                 Console.WriteLine("❌ Pusta odpowiedź od AI");
+                debugLog.Success = false;
+                debugLog.ErrorMessage = "Pusta odpowiedź od AI";
+                SaveDebugLog(debugLog);
                 return null;
             }
 
@@ -48,10 +64,12 @@ public class GeminiShoppingListService : IShoppingListService
                 .Replace("```", "")
                 .Trim();
 
-            // Debug: Save response
-            var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "shopping_list_debug.json");
-            File.WriteAllText(debugPath, responseText);
-            Console.WriteLine($"🔍 DEBUG: Zapisano odpowiedź do: {debugPath}");
+            // Fallback: if AI returned array instead of object with "items", wrap it
+            if (responseText.StartsWith("["))
+            {
+                Console.WriteLine("⚠️ AI zwróciło tablicę zamiast obiektu - naprawiam automatycznie");
+                responseText = $"{{\"items\": {responseText}}}";
+            }
 
             var shoppingList = JsonSerializer.Deserialize<ShoppingListResponse>(responseText, new JsonSerializerOptions
             {
@@ -61,8 +79,15 @@ public class GeminiShoppingListService : IShoppingListService
             if (shoppingList?.Items == null || shoppingList.Items.Count == 0)
             {
                 Console.WriteLine("❌ Brak elementów na liście zakupowej");
+                debugLog.Success = false;
+                debugLog.ErrorMessage = "Brak elementów na liście zakupowej";
+                SaveDebugLog(debugLog);
                 return null;
             }
+
+            debugLog.Success = true;
+            debugLog.ItemsGenerated = shoppingList.Items.Count;
+            SaveDebugLog(debugLog);
 
             Console.WriteLine($"✅ Wygenerowano listę zakupową: {shoppingList.Items.Count} pozycji");
             return shoppingList;
@@ -71,7 +96,212 @@ public class GeminiShoppingListService : IShoppingListService
         {
             Console.WriteLine($"❌ Błąd generowania listy zakupowej: {ex.GetType().Name}");
             Console.WriteLine($"   Komunikat: {ex.Message}");
+            debugLog.Success = false;
+            debugLog.ErrorMessage = $"{ex.GetType().Name}: {ex.Message}";
+            SaveDebugLog(debugLog);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Generates shopping list using day-by-day chunking approach
+    /// </summary>
+    public async Task<ShoppingListResponse?> GenerateShoppingListChunked(Dictionary<int, List<Recipe>> recipesByDay)
+    {
+        try
+        {
+            Console.WriteLine($"🛒 Generowanie listy zakupowej (chunking): {recipesByDay.Count} dni");
+
+            var dailyLists = new List<DailyShoppingList>();
+
+            // FAZA A: Generuj listę dla każdego dnia
+            foreach (var (dayNumber, recipes) in recipesByDay.OrderBy(x => x.Key))
+            {
+                Console.WriteLine($"📅 Dzień {dayNumber}: {recipes.Count} przepisów");
+
+                var dayDebugLog = new ShoppingListDebugLog
+                {
+                    Timestamp = DateTime.Now,
+                    Provider = "Google Gemini",
+                    ModelName = _model.Name,
+                    RecipeCount = recipes.Count,
+                    Phase = $"Day {dayNumber}"
+                };
+
+                try
+                {
+                    var systemInstruction = "Jesteś asystentem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu.";
+                    var taskPrompt = PromptBuilder.BuildDailyShoppingListPrompt(recipes, dayNumber);
+                    var prompt = $"{systemInstruction}\n\n{taskPrompt}";
+
+                    dayDebugLog.PromptSent = prompt;
+
+                    var response = await _model.GenerateContent(prompt);
+                    var responseText = response?.Text?.Trim() ?? "";
+                    dayDebugLog.ResponseReceived = responseText;
+
+                    if (string.IsNullOrEmpty(responseText))
+                    {
+                        Console.WriteLine($"❌ Dzień {dayNumber}: Pusta odpowiedź od AI");
+                        dayDebugLog.Success = false;
+                        dayDebugLog.ErrorMessage = "Pusta odpowiedź od AI";
+                        SaveDebugLog(dayDebugLog, $"shopping_list_debug_day{dayNumber}.json");
+                        continue;
+                    }
+
+                    // Remove markdown code blocks
+                    responseText = responseText
+                        .Replace("```json", "")
+                        .Replace("```", "")
+                        .Trim();
+
+                    // Fallback: if AI returned array instead of object with "items", wrap it
+                    if (responseText.StartsWith("["))
+                    {
+                        Console.WriteLine($"⚠️ Dzień {dayNumber}: AI zwróciło tablicę zamiast obiektu - naprawiam automatycznie");
+                        responseText = $"{{\"items\": {responseText}}}";
+                    }
+
+                    var dayList = JsonSerializer.Deserialize<ShoppingListResponse>(responseText, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (dayList?.Items == null || dayList.Items.Count == 0)
+                    {
+                        Console.WriteLine($"❌ Dzień {dayNumber}: Brak elementów na liście");
+                        dayDebugLog.Success = false;
+                        dayDebugLog.ErrorMessage = "Brak elementów na liście";
+                        SaveDebugLog(dayDebugLog, $"shopping_list_debug_day{dayNumber}.json");
+                        continue;
+                    }
+
+                    dayDebugLog.Success = true;
+                    dayDebugLog.ItemsGenerated = dayList.Items.Count;
+                    SaveDebugLog(dayDebugLog, $"shopping_list_debug_day{dayNumber}.json");
+
+                    dailyLists.Add(new DailyShoppingList
+                    {
+                        Day = dayNumber,
+                        Items = dayList.Items
+                    });
+
+                    Console.WriteLine($"   ✅ {dayList.Items.Count} pozycji");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Dzień {dayNumber}: Błąd - {ex.Message}");
+                    dayDebugLog.Success = false;
+                    dayDebugLog.ErrorMessage = $"{ex.GetType().Name}: {ex.Message}";
+                    SaveDebugLog(dayDebugLog, $"shopping_list_debug_day{dayNumber}.json");
+                }
+            }
+
+            if (dailyLists.Count == 0)
+            {
+                Console.WriteLine("❌ Nie wygenerowano żadnych list dziennych");
+                return null;
+            }
+
+            // FAZA B: Merge wszystkich list dziennych
+            Console.WriteLine($"🔀 Łączenie {dailyLists.Count} list dziennych...");
+
+            var mergeDebugLog = new ShoppingListDebugLog
+            {
+                Timestamp = DateTime.Now,
+                Provider = "Google Gemini",
+                ModelName = _model.Name,
+                RecipeCount = dailyLists.Sum(d => d.Items.Count),
+                Phase = "Merge"
+            };
+
+            try
+            {
+                var systemInstruction = "Jesteś asystentem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu.";
+                var taskPrompt = PromptBuilder.BuildMergeShoppingListsPrompt(dailyLists);
+                var prompt = $"{systemInstruction}\n\n{taskPrompt}";
+
+                mergeDebugLog.PromptSent = prompt;
+
+                var response = await _model.GenerateContent(prompt);
+                var responseText = response?.Text?.Trim() ?? "";
+                mergeDebugLog.ResponseReceived = responseText;
+
+                if (string.IsNullOrEmpty(responseText))
+                {
+                    Console.WriteLine("❌ Merge: Pusta odpowiedź od AI");
+                    mergeDebugLog.Success = false;
+                    mergeDebugLog.ErrorMessage = "Pusta odpowiedź od AI";
+                    SaveDebugLog(mergeDebugLog, "shopping_list_debug_merge.json");
+                    return null;
+                }
+
+                // Remove markdown code blocks
+                responseText = responseText
+                    .Replace("```json", "")
+                    .Replace("```", "")
+                    .Trim();
+
+                // Fallback: if AI returned array instead of object with "items", wrap it
+                if (responseText.StartsWith("["))
+                {
+                    Console.WriteLine("⚠️ Merge: AI zwróciło tablicę zamiast obiektu - naprawiam automatycznie");
+                    responseText = $"{{\"items\": {responseText}}}";
+                }
+
+                var finalList = JsonSerializer.Deserialize<ShoppingListResponse>(responseText, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (finalList?.Items == null || finalList.Items.Count == 0)
+                {
+                    Console.WriteLine("❌ Merge: Brak elementów na finalnej liście");
+                    mergeDebugLog.Success = false;
+                    mergeDebugLog.ErrorMessage = "Brak elementów na finalnej liście";
+                    SaveDebugLog(mergeDebugLog, "shopping_list_debug_merge.json");
+                    return null;
+                }
+
+                mergeDebugLog.Success = true;
+                mergeDebugLog.ItemsGenerated = finalList.Items.Count;
+                SaveDebugLog(mergeDebugLog, "shopping_list_debug_merge.json");
+
+                Console.WriteLine($"✅ Finalna lista: {finalList.Items.Count} pozycji");
+                return finalList;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Błąd podczas merge: {ex.Message}");
+                mergeDebugLog.Success = false;
+                mergeDebugLog.ErrorMessage = $"{ex.GetType().Name}: {ex.Message}";
+                SaveDebugLog(mergeDebugLog, "shopping_list_debug_merge.json");
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Błąd generowania listy zakupowej (chunking): {ex.Message}");
+            return null;
+        }
+    }
+
+    private void SaveDebugLog(ShoppingListDebugLog log, string filename = "shopping_list_debug.json")
+    {
+        try
+        {
+            var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, filename);
+            var json = JsonSerializer.Serialize(log, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+            File.WriteAllText(debugPath, json);
+            Console.WriteLine($"🔍 DEBUG: Zapisano log do: {debugPath}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Nie udało się zapisać debug logu: {ex.Message}");
         }
     }
 
@@ -79,8 +309,6 @@ public class GeminiShoppingListService : IShoppingListService
     {
         var promptBuilder = new StringBuilder();
 
-        promptBuilder.AppendLine("Jesteś asystentem do tworzenia list zakupowych.");
-        promptBuilder.AppendLine();
         promptBuilder.AppendLine("**ZADANIE:**");
         promptBuilder.AppendLine("Na podstawie poniższych przepisów wygeneruj zagregowaną listę zakupów.");
         promptBuilder.AppendLine();

@@ -4,7 +4,9 @@
       "Bash(dir /s \"f:\\Projekty\\Przepisy\")",
       "Bash(dir /b)",
       "Bash(dir /s /b /a:d .git)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git tag:*)",
+      "Bash(dotnet build:*)"
     ],
     "deny": [],
     "ask": []
