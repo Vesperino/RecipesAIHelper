@@ -1433,6 +1433,7 @@ public class RecipeDbContext : IDisposable
         {
             while (reader.Read())
             {
+                var columnCount = reader.FieldCount;
                 var entry = new MealPlanEntry
                 {
                     Id = reader.GetInt32(0),
@@ -1455,7 +1456,12 @@ public class RecipeDbContext : IDisposable
                         MealType = (MealType)reader.GetInt32(15),
                         CreatedAt = DateTime.Parse(reader.GetString(16)),
                         ImagePath = reader.IsDBNull(17) ? null : reader.GetString(17),
-                        ImageUrl = reader.IsDBNull(18) ? null : reader.GetString(18)
+                        ImageUrl = reader.IsDBNull(18) ? null : reader.GetString(18),
+                        Servings = columnCount > 19 && !reader.IsDBNull(19) ? reader.GetInt32(19) : null,
+                        NutritionVariantsJson = columnCount > 20 && !reader.IsDBNull(20) ? reader.GetString(20) : null,
+                        SourcePdfFile = columnCount > 21 && !reader.IsDBNull(21) ? reader.GetString(21) : null,
+                        AlternateMealType = columnCount > 22 && !reader.IsDBNull(22) ? (MealType?)reader.GetInt32(22) : null,
+                        DoNotScale = columnCount > 23 && !reader.IsDBNull(23) && reader.GetInt32(23) == 1
                     }
                 };
                 entries.Add(entry);
@@ -1637,6 +1643,7 @@ public class RecipeDbContext : IDisposable
         {
             while (reader.Read())
             {
+                var columnCount = reader.FieldCount;
                 recipes.Add(new MealPlanRecipe
                 {
                     Id = reader.GetInt32(0),
@@ -1669,7 +1676,14 @@ public class RecipeDbContext : IDisposable
                         Carbohydrates = reader.GetDouble(21),
                         Fat = reader.GetDouble(22),
                         MealType = (MealType)reader.GetInt32(23),
-                        CreatedAt = DateTime.Parse(reader.GetString(24))
+                        CreatedAt = DateTime.Parse(reader.GetString(24)),
+                        ImagePath = columnCount > 25 && !reader.IsDBNull(25) ? reader.GetString(25) : null,
+                        ImageUrl = columnCount > 26 && !reader.IsDBNull(26) ? reader.GetString(26) : null,
+                        Servings = columnCount > 27 && !reader.IsDBNull(27) ? reader.GetInt32(27) : null,
+                        NutritionVariantsJson = columnCount > 28 && !reader.IsDBNull(28) ? reader.GetString(28) : null,
+                        SourcePdfFile = columnCount > 29 && !reader.IsDBNull(29) ? reader.GetString(29) : null,
+                        AlternateMealType = columnCount > 30 && !reader.IsDBNull(30) ? (MealType?)reader.GetInt32(30) : null,
+                        DoNotScale = columnCount > 31 && !reader.IsDBNull(31) && reader.GetInt32(31) == 1
                     }
                 });
             }
@@ -1686,6 +1700,44 @@ public class RecipeDbContext : IDisposable
         command.Parameters.AddWithValue("@id", id);
 
         return command.ExecuteNonQuery() > 0;
+    }
+
+    public List<MealPlanRecipe> GetAllScaledRecipesForPlan(int planId)
+    {
+        var connection = GetConnection();
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT mpr.*
+            FROM MealPlanRecipes mpr
+            INNER JOIN MealPlanEntries mpe ON mpr.MealPlanEntryId = mpe.Id
+            INNER JOIN MealPlanDays mpd ON mpe.MealPlanDayId = mpd.Id
+            WHERE mpd.MealPlanId = @planId
+        ";
+        command.Parameters.AddWithValue("@planId", planId);
+
+        var recipes = new List<MealPlanRecipe>();
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                recipes.Add(new MealPlanRecipe
+                {
+                    Id = reader.GetInt32(0),
+                    MealPlanEntryId = reader.GetInt32(1),
+                    PersonId = reader.GetInt32(2),
+                    BaseRecipeId = reader.GetInt32(3),
+                    ScalingFactor = reader.GetDouble(4),
+                    ScaledIngredientsJson = reader.GetString(5),
+                    ScaledCalories = reader.GetInt32(6),
+                    ScaledProtein = reader.GetDouble(7),
+                    ScaledCarbs = reader.GetDouble(8),
+                    ScaledFat = reader.GetDouble(9),
+                    CreatedAt = DateTime.Parse(reader.GetString(10))
+                });
+            }
+        }
+
+        return recipes;
     }
 
     // Shopping Lists

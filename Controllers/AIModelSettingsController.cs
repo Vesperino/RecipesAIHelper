@@ -15,7 +15,7 @@ public class AIModelSettingsController : ControllerBase
     }
 
     /// <summary>
-    /// Get AI model settings for recipe scaling
+    /// Get AI model settings for meal planning (recipe scaling, shopping list)
     /// GET /api/aimodelsettings
     /// </summary>
     [HttpGet]
@@ -27,7 +27,13 @@ public class AIModelSettingsController : ControllerBase
             {
                 recipeScaling = new
                 {
+                    provider = _db.GetSetting("RecipeScaling_Provider") ?? "Gemini",
                     model = _db.GetSetting("RecipeScaling_Model") ?? "gemini-2.5-flash"
+                },
+                shoppingList = new
+                {
+                    provider = _db.GetSetting("ShoppingList_Provider") ?? "Gemini",
+                    model = _db.GetSetting("ShoppingList_Model") ?? "gemini-2.5-flash"
                 }
             };
 
@@ -40,7 +46,7 @@ public class AIModelSettingsController : ControllerBase
     }
 
     /// <summary>
-    /// Update AI model settings for recipe scaling
+    /// Update AI model settings for meal planning (recipe scaling, shopping list)
     /// PUT /api/aimodelsettings
     /// </summary>
     [HttpPut]
@@ -49,6 +55,15 @@ public class AIModelSettingsController : ControllerBase
         try
         {
             var updated = false;
+
+            // Update recipe scaling provider
+            if (!string.IsNullOrEmpty(update.RecipeScaling?.Provider))
+            {
+                _db.UpsertSetting("RecipeScaling_Provider", update.RecipeScaling.Provider, "string",
+                    "Provider AI do skalowania składników przepisów (OpenAI lub Gemini)");
+                updated = true;
+                Console.WriteLine($"✅ Zmieniono providera skalowania przepisów na: {update.RecipeScaling.Provider}");
+            }
 
             // Update recipe scaling model
             if (!string.IsNullOrEmpty(update.RecipeScaling?.Model))
@@ -59,6 +74,24 @@ public class AIModelSettingsController : ControllerBase
                 Console.WriteLine($"✅ Zmieniono model skalowania przepisów na: {update.RecipeScaling.Model}");
             }
 
+            // Update shopping list provider
+            if (!string.IsNullOrEmpty(update.ShoppingList?.Provider))
+            {
+                _db.UpsertSetting("ShoppingList_Provider", update.ShoppingList.Provider, "string",
+                    "Provider AI do generowania listy zakupów (OpenAI lub Gemini)");
+                updated = true;
+                Console.WriteLine($"✅ Zmieniono providera listy zakupów na: {update.ShoppingList.Provider}");
+            }
+
+            // Update shopping list model
+            if (!string.IsNullOrEmpty(update.ShoppingList?.Model))
+            {
+                _db.UpsertSetting("ShoppingList_Model", update.ShoppingList.Model, "string",
+                    "Model AI do generowania listy zakupów");
+                updated = true;
+                Console.WriteLine($"✅ Zmieniono model listy zakupów na: {update.ShoppingList.Model}");
+            }
+
             if (updated)
             {
                 return Ok(new
@@ -66,7 +99,16 @@ public class AIModelSettingsController : ControllerBase
                     message = "AI model settings updated successfully",
                     currentSettings = new
                     {
-                        recipeScaling = _db.GetSetting("RecipeScaling_Model") ?? "gemini-2.5-flash"
+                        recipeScaling = new
+                        {
+                            provider = _db.GetSetting("RecipeScaling_Provider") ?? "Gemini",
+                            model = _db.GetSetting("RecipeScaling_Model") ?? "gemini-2.5-flash"
+                        },
+                        shoppingList = new
+                        {
+                            provider = _db.GetSetting("ShoppingList_Provider") ?? "Gemini",
+                            model = _db.GetSetting("ShoppingList_Model") ?? "gemini-2.5-flash"
+                        }
                     }
                 });
             }
@@ -87,9 +129,17 @@ public class AIModelSettingsController : ControllerBase
 public class AIModelSettingsUpdate
 {
     public RecipeScalingSettings? RecipeScaling { get; set; }
+    public ShoppingListSettings? ShoppingList { get; set; }
 }
 
 public class RecipeScalingSettings
 {
+    public string? Provider { get; set; }
+    public string? Model { get; set; }
+}
+
+public class ShoppingListSettings
+{
+    public string? Provider { get; set; }
     public string? Model { get; set; }
 }

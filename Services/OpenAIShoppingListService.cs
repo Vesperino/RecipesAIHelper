@@ -1,25 +1,32 @@
 using System.Text;
 using System.Text.Json;
-using Mscc.GenerativeAI;
+using OpenAI;
+using OpenAI.Chat;
+using System.ClientModel;
 using RecipesAIHelper.Models;
 
 namespace RecipesAIHelper.Services;
 
 /// <summary>
-/// Service for generating shopping lists using AI aggregation
+/// Service for generating shopping lists using OpenAI (GPT models)
 /// </summary>
-public class ShoppingListService
+public class OpenAIShoppingListService : IShoppingListService
 {
-    private readonly GoogleAI _genAi;
-    private readonly GenerativeModel _model;
+    private readonly ChatClient _chatClient;
+    private readonly string _modelName;
 
-    public ShoppingListService(string apiKey, string modelName = "gemini-2.5-flash")
+    public OpenAIShoppingListService(string apiKey, string modelName = "gpt-5-mini-2025-08-07")
     {
-        _genAi = new GoogleAI(apiKey);
-        _model = _genAi.GenerativeModel(model: modelName);
-        _model.Timeout = TimeSpan.FromMinutes(2);
+        _modelName = modelName;
 
-        Console.WriteLine($"✅ ShoppingListService zainicjalizowany ({modelName})");
+        // Create client with extended timeout
+        var clientOptions = new OpenAIClientOptions
+        {
+            NetworkTimeout = TimeSpan.FromMinutes(2)
+        };
+        _chatClient = new ChatClient(modelName, new ApiKeyCredential(apiKey), clientOptions);
+
+        Console.WriteLine($"✅ OpenAIShoppingListService zainicjalizowany ({modelName})");
     }
 
     /// <summary>
@@ -33,8 +40,14 @@ public class ShoppingListService
 
             var prompt = BuildShoppingListPrompt(recipes);
 
-            var response = await _model.GenerateContent(prompt);
-            var responseText = response?.Text?.Trim() ?? "";
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage("Jesteś ekspertem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu."),
+                new UserChatMessage(prompt)
+            };
+
+            var chatCompletion = await _chatClient.CompleteChatAsync(messages);
+            var responseText = chatCompletion.Value.Content[0].Text.Trim();
 
             if (string.IsNullOrEmpty(responseText))
             {
@@ -92,7 +105,19 @@ public class ShoppingListService
         promptBuilder.AppendLine("   - łyżki/łyżeczki sumuj");
         promptBuilder.AppendLine("   - mililitry (ml) sumuj, powyżej 1000ml zamień na litry (l)");
         promptBuilder.AppendLine("3. **Jeśli nie jesteś pewien** czy składniki są identyczne - **zostaw osobno!**");
-        promptBuilder.AppendLine("4. **Grupuj według kategorii** (warzywa, mięso, nabiał, przyprawy, etc.)");
+        promptBuilder.AppendLine("4. **Grupuj według kategorii** - wybierz najbardziej odpowiednią:");
+        promptBuilder.AppendLine("   - **warzywa** - świeże warzywa (pomidory, ogórki, papryka itp.)");
+        promptBuilder.AppendLine("   - **owoce** - świeże i suszone owoce");
+        promptBuilder.AppendLine("   - **mięso i wędliny** - mięso, drób, wędliny");
+        promptBuilder.AppendLine("   - **ryby** - ryby i owoce morza");
+        promptBuilder.AppendLine("   - **nabiał** - mleko, sery, jogurty, masło");
+        promptBuilder.AppendLine("   - **pieczywo** - chleb, bułki, pita");
+        promptBuilder.AppendLine("   - **makarony i kasze** - makaron, ryż, kasza, płatki");
+        promptBuilder.AppendLine("   - **spożywka** - oleje, mąki, cukier, sól, musztarda, ketchup, dodatki");
+        promptBuilder.AppendLine("   - **przyprawy** - przyprawy i zioła");
+        promptBuilder.AppendLine("   - **napoje** - soki, woda, napoje");
+        promptBuilder.AppendLine("   - **chemia** - środki czystości, papier toaletowy, ręczniki papierowe");
+        promptBuilder.AppendLine("   - **inne** - wszystko co nie pasuje do innych kategorii");
         promptBuilder.AppendLine("5. **Zaokrąglaj** ilości do praktycznych wartości (np. 125g → 125g, 1250g → 1.25kg)");
         promptBuilder.AppendLine();
         promptBuilder.AppendLine("**PRZEPISY DO PRZETWORZENIA:**");
@@ -115,7 +140,7 @@ public class ShoppingListService
     {
       ""name"": ""nazwa składnika"",
       ""quantity"": ""ilość z jednostką"",
-      ""category"": ""kategoria (warzywa/mięso/nabiał/przyprawy/inne)""
+      ""category"": ""kategoria""
     }
   ]
 }");
@@ -124,25 +149,15 @@ public class ShoppingListService
         promptBuilder.AppendLine(@"{
   ""items"": [
     {""name"": ""cebula"", ""quantity"": ""2 szt"", ""category"": ""warzywa""},
-    {""name"": ""pierś z kurczaka"", ""quantity"": ""500g"", ""category"": ""mięso""},
-    {""name"": ""udko z kurczaka"", ""quantity"": ""300g"", ""category"": ""mięso""},
-    {""name"": ""mąka pszenna"", ""quantity"": ""1kg"", ""category"": ""inne""}
+    {""name"": ""pierś z kurczaka"", ""quantity"": ""500g"", ""category"": ""mięso i wędliny""},
+    {""name"": ""udko z kurczaka"", ""quantity"": ""300g"", ""category"": ""mięso i wędliny""},
+    {""name"": ""mąka pszenna"", ""quantity"": ""1kg"", ""category"": ""spożywka""},
+    {""name"": ""chleb"", ""quantity"": ""1 szt"", ""category"": ""pieczywo""},
+    {""name"": ""olej rzepakowy"", ""quantity"": ""500ml"", ""category"": ""spożywka""},
+    {""name"": ""płyn do mycia naczyń"", ""quantity"": ""1 szt"", ""category"": ""chemia""}
   ]
 }");
 
         return promptBuilder.ToString();
     }
-}
-
-// Response models for Shopping List
-public class ShoppingListResponse
-{
-    public List<ShoppingListItem> Items { get; set; } = new();
-}
-
-public class ShoppingListItem
-{
-    public string Name { get; set; } = string.Empty;
-    public string Quantity { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
 }

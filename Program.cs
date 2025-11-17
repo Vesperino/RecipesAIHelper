@@ -39,13 +39,6 @@ class Program
         var openAiModel = builder.Configuration["OpenAI:Model"] ?? "gpt-5-mini-2025-08-07";
         var databasePath = builder.Configuration["Settings:DatabasePath"] ?? "recipes.db";
 
-        if (string.IsNullOrEmpty(openAiApiKey) || openAiApiKey == "YOUR_OPENAI_API_KEY_HERE")
-        {
-            Console.WriteLine("ERROR: OpenAI API key not configured!");
-            Console.WriteLine("Set it in appsettings.json or OPENAI_API_KEY environment variable.");
-            return;
-        }
-
         // Add services
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
@@ -98,7 +91,19 @@ class Program
         Console.WriteLine("=== Recipe AI Helper - Web Mode ===");
         Console.WriteLine($"Database: {databasePath}");
         Console.WriteLine($"Recipes in database: {db.GetRecipeCount()}");
-        Console.WriteLine($"OpenAI Model: {openAiModel}");
+
+        // Check if API keys are configured
+        var activeProvider = db.GetActiveAIProvider();
+        if (activeProvider == null)
+        {
+            Console.WriteLine();
+            Console.WriteLine("⚠️  UWAGA: Brak skonfigurowanego providera AI");
+            Console.WriteLine("   Skonfiguruj klucze API w zakładce ⚙️ Ustawienia w interfejsie webowym");
+        }
+        else
+        {
+            Console.WriteLine($"Active AI Provider: {activeProvider.Name} ({activeProvider.Model})");
+        }
         Console.WriteLine();
 
         // Configure middleware
@@ -109,9 +114,9 @@ class Program
         // Fallback to index.html
         app.MapFallbackToFile("index.html");
 
-        Console.WriteLine("Web interface available at:");
-        Console.WriteLine("  http://localhost:5000");
-        Console.WriteLine("  https://localhost:5001");
+        Console.WriteLine("🌐 Web interface available at:");
+        Console.WriteLine("   http://localhost:5000");
+        Console.WriteLine("   https://localhost:5001");
         Console.WriteLine();
         Console.WriteLine("Press Ctrl+C to stop");
 
@@ -144,13 +149,6 @@ class Program
         var delayBetweenChunks = int.TryParse(configuration["Settings:DelayBetweenChunksMs"], out var delay) ? delay : 3000;
         var checkDuplicates = bool.TryParse(configuration["Settings:CheckDuplicates"], out var checkDup) ? checkDup : true;
         var recentRecipesContext = int.TryParse(configuration["Settings:RecentRecipesContext"], out var recentCtx) ? recentCtx : 10;
-
-        if (string.IsNullOrEmpty(openAiApiKey) || openAiApiKey == "YOUR_OPENAI_API_KEY_HERE")
-        {
-            Console.WriteLine("ERROR: OpenAI API key not configured!");
-            Console.WriteLine("Set it in appsettings.json or OPENAI_API_KEY environment variable.");
-            return;
-        }
 
         Console.WriteLine($"Configuration:");
         Console.WriteLine($"  - OpenAI Model: {openAiModel}");
