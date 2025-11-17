@@ -65,6 +65,9 @@ public class Recipe
 
     // Source PDF file for regeneration
     public string? SourcePdfFile { get; set; }
+
+    // Flag to indicate this recipe should not be scaled (e.g., protein supplements, fixed portions)
+    public bool DoNotScale { get; set; } = false;
 }
 
 public class NutritionVariant

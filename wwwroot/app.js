@@ -40,7 +40,18 @@ function appData() {
         selectedPdfFiles: [],
         dirMessage: '',
         dirMessageSuccess: false,
-        processingStatus: null,
+        processingStatus: {
+            currentFile: 0,
+            totalFiles: 0,
+            streamingBytesReceived: 0,
+            streamingElapsedSeconds: 0,
+            streamingMessage: '',
+            recipesSaved: 0,
+            duplicatesSkipped: 0,
+            errors: 0,
+            message: '',
+            isRunning: false
+        },
 
         // Manual File Upload
         uploadedFiles: [],
@@ -55,6 +66,10 @@ function appData() {
         selectedRecipe: null,
         showRecipeModal: false,
         currentRecipeIdForImage: null,
+
+        // Scaling resume modal
+        showScalingResumeModal: false,
+        scalingStatus: null,
 
         // Advanced recipe filters
         recipeFilters: {
@@ -97,14 +112,27 @@ function appData() {
 
         // AI Model Settings for Meal Planning
         aiModelSettings: {
-            recipeScaling: { model: 'gemini-2.5-flash' },
-            dessertPlanning: { model: 'gemini-2.5-flash' }
+            recipeScaling: {
+                provider: 'Gemini',
+                model: 'gemini-2.5-flash'
+            },
+            shoppingList: {
+                provider: 'Gemini',
+                model: 'gemini-2.5-flash'
+            }
         },
         isExportingToTodoist: false,
 
         // Meal Planner
         mealPlans: [],
-        selectedPlan: null,
+        selectedPlan: {
+            id: null,
+            name: '',
+            startDate: '',
+            endDate: '',
+            days: [],
+            persons: []
+        },
         editingPlanName: false,
         planNameEdit: '',
         showCreatePlanModal: false,
@@ -112,8 +140,32 @@ function appData() {
         showAutoGenerateModal: false,
         showEditRecipeModal: false,
         showCreateRecipeModal: false,
-        editingRecipe: null,
-        newRecipe: null,
+        editingRecipe: {
+            id: null,
+            name: '',
+            description: '',
+            ingredients: '',
+            instructions: '',
+            calories: 0,
+            protein: 0,
+            carbohydrates: 0,
+            fat: 0,
+            mealType: 0,
+            servings: null,
+            doNotScale: false
+        },
+        newRecipe: {
+            name: '',
+            description: '',
+            ingredients: '',
+            instructions: '',
+            calories: 0,
+            protein: 0,
+            carbohydrates: 0,
+            fat: 0,
+            mealType: 0,
+            servings: null
+        },
         createPlanForm: {
             name: '',
             startDate: '',
@@ -132,6 +184,7 @@ function appData() {
         isGeneratingShoppingList: false,
         isGeneratingPlan: false,
         isScalingRecipes: false,
+        isDeletingScaling: false,
         draggedRecipe: null,
         draggedEntry: null,
         draggedFromDayId: null,
@@ -498,7 +551,18 @@ function appData() {
                     if (!status.isRunning && this.statusInterval) {
                         clearInterval(this.statusInterval);
                         this.statusInterval = null;
-                        this.processingStatus = null;
+                        this.processingStatus = {
+                            currentFile: 0,
+                            totalFiles: 0,
+                            streamingBytesReceived: 0,
+                            streamingElapsedSeconds: 0,
+                            streamingMessage: '',
+                            recipesSaved: 0,
+                            duplicatesSkipped: 0,
+                            errors: 0,
+                            message: '',
+                            isRunning: false
+                        };
 
                         if (status.errors === 0) {
                             this.showNotification(
@@ -1372,11 +1436,13 @@ function appData() {
 
                 if (settingType === 'recipeScaling') {
                     payload.recipeScaling = {
+                        provider: this.aiModelSettings.recipeScaling.provider,
                         model: this.aiModelSettings.recipeScaling.model
                     };
-                } else if (settingType === 'dessertPlanning') {
-                    payload.dessertPlanning = {
-                        model: this.aiModelSettings.dessertPlanning.model
+                } else if (settingType === 'shoppingList') {
+                    payload.shoppingList = {
+                        provider: this.aiModelSettings.shoppingList.provider,
+                        model: this.aiModelSettings.shoppingList.model
                     };
                 }
 
@@ -1491,7 +1557,14 @@ function appData() {
 
                 // Clear selection if this was the selected plan
                 if (this.selectedPlan?.id === planId) {
-                    this.selectedPlan = null;
+                    this.selectedPlan = {
+                        id: null,
+                        name: '',
+                        startDate: '',
+                        endDate: '',
+                        days: [],
+                        persons: []
+                    };
                 }
 
                 await this.loadMealPlans();
@@ -1502,7 +1575,7 @@ function appData() {
         },
 
         startEditingPlanName() {
-            if (!this.selectedPlan) return;
+            if (!this.selectedPlan.id) return;
             this.planNameEdit = this.selectedPlan.name;
             this.editingPlanName = true;
             // Focus input after render
@@ -1555,7 +1628,7 @@ function appData() {
 
         // Person management
         async addPerson() {
-            if (!this.selectedPlan) return;
+            if (!this.selectedPlan.id) return;
             if (!this.newPerson.name.trim()) {
                 this.showNotification('Podaj imię osoby', 'error');
                 return;
@@ -1595,7 +1668,7 @@ function appData() {
         },
 
         async updatePerson(person) {
-            if (!this.selectedPlan) return;
+            if (!this.selectedPlan.id) return;
             if (!person.name.trim()) {
                 this.showNotification('Podaj imię osoby', 'error');
                 return;
@@ -1634,7 +1707,7 @@ function appData() {
         },
 
         async deletePerson(personId) {
-            if (!this.selectedPlan) return;
+            if (!this.selectedPlan.id) return;
             if (!confirm('Czy na pewno chcesz usunąć tę osobę? Wszystkie przeskalowane przepisy dla tej osoby zostaną usunięte.')) return;
 
             try {
@@ -1655,7 +1728,7 @@ function appData() {
         },
 
         async scaleRecipeForPlan(entryId) {
-            if (!this.selectedPlan) return;
+            if (!this.selectedPlan.id) return;
             if (!this.selectedPlan.persons || this.selectedPlan.persons.length === 0) {
                 this.showNotification('Dodaj osoby do planu przed skalowaniem', 'error');
                 return;
@@ -1671,6 +1744,12 @@ function appData() {
             }
 
             if (!entry) return;
+
+            // Check if recipe has DoNotScale flag
+            if (entry.recipe?.doNotScale) {
+                this.showNotification('Ten przepis ma stałą porcję i nie może być skalowany', 'warning');
+                return;
+            }
 
             entry.scaling = true;
 
@@ -1733,6 +1812,37 @@ function appData() {
             }
         },
 
+        // Quick add recipe to specific day without drag-and-drop
+        async addRecipeToDayQuick(recipe, dayId) {
+            if (!this.selectedPlan || !dayId) return;
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${dayId}/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipeId: recipe.id,
+                        mealType: recipe.mealType,
+                        order: 0
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to add recipe to day');
+
+                // Find day name for notification
+                const day = this.selectedPlan.days.find(d => d.id === dayId);
+                const dayName = day ? this.getDayOfWeekName(day.dayOfWeek) : 'dzień';
+
+                this.showNotification(`Dodano "${recipe.name}" do ${dayName}`, 'success');
+
+                // Reload the selected plan to show the change
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error adding recipe to day:', error);
+                this.showNotification('Błąd dodawania przepisu: ' + error.message, 'error');
+            }
+        },
+
         async removeRecipeFromDay(dayId, entryId) {
             try {
                 const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${dayId}/entries/${entryId}`, {
@@ -1748,6 +1858,200 @@ function appData() {
             } catch (error) {
                 console.error('Error removing recipe:', error);
                 this.showNotification('Błąd usuwania przepisu: ' + error.message, 'error');
+            }
+        },
+
+        async swapDays(day1Id, day2Id) {
+            if (!this.selectedPlan || !day1Id || !day2Id) return;
+
+            try {
+                // Get both days
+                const day1 = this.selectedPlan.days.find(d => d.id === day1Id);
+                const day2 = this.selectedPlan.days.find(d => d.id === day2Id);
+
+                if (!day1 || !day2) {
+                    this.showNotification('Nie można znaleźć dni do zamiany', 'error');
+                    return;
+                }
+
+                const day1Name = this.getDayOfWeekName(day1.dayOfWeek);
+                const day2Name = this.getDayOfWeekName(day2.dayOfWeek);
+
+                // Get all entries from both days
+                const day1Entries = day1.entries || [];
+                const day2Entries = day2.entries || [];
+
+                // Delete all entries from both days
+                for (const entry of day1Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries/${entry.id}`, {
+                        method: 'DELETE'
+                    });
+                }
+
+                for (const entry of day2Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries/${entry.id}`, {
+                        method: 'DELETE'
+                    });
+                }
+
+                // Add day1's entries to day2
+                for (const entry of day1Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            recipeId: entry.recipe.id,
+                            mealType: entry.mealType,
+                            order: entry.order
+                        })
+                    });
+                }
+
+                // Add day2's entries to day1
+                for (const entry of day2Entries) {
+                    await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            recipeId: entry.recipe.id,
+                            mealType: entry.mealType,
+                            order: entry.order
+                        })
+                    });
+                }
+
+                this.showNotification(`Zamieniono ${day1Name} ↔ ${day2Name}`, 'success');
+
+                // Reload the selected plan
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error swapping days:', error);
+                this.showNotification('Błąd zamiany dni: ' + error.message, 'error');
+            }
+        },
+
+        async swapMealEntries(entry1Id, day1Id, entry2Id, day2Id) {
+            if (!this.selectedPlan || !entry1Id || !entry2Id) return;
+
+            try {
+                // Find the entries to get their details
+                const day1 = this.selectedPlan.days.find(d => d.id === day1Id);
+                const day2 = this.selectedPlan.days.find(d => d.id === day2Id);
+
+                if (!day1 || !day2) {
+                    this.showNotification('Nie można znaleźć dni', 'error');
+                    return;
+                }
+
+                const entry1 = day1.entries?.find(e => e.id === entry1Id);
+                const entry2 = day2.entries?.find(e => e.id === entry2Id);
+
+                if (!entry1 || !entry2) {
+                    this.showNotification('Nie można znaleźć posiłków', 'error');
+                    return;
+                }
+
+                // Delete both entries
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries/${entry1Id}`, {
+                    method: 'DELETE'
+                });
+
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries/${entry2Id}`, {
+                    method: 'DELETE'
+                });
+
+                // Add entry1 to day2 (with entry2's original order)
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day2Id}/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipeId: entry1.recipe.id,
+                        mealType: entry1.mealType,
+                        order: entry2.order
+                    })
+                });
+
+                // Add entry2 to day1 (with entry1's original order)
+                await fetch(`/api/mealplans/${this.selectedPlan.id}/days/${day1Id}/entries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipeId: entry2.recipe.id,
+                        mealType: entry2.mealType,
+                        order: entry1.order
+                    })
+                });
+
+                const day1Name = this.getDayOfWeekName(day1.dayOfWeek);
+                const day2Name = this.getDayOfWeekName(day2.dayOfWeek);
+
+                this.showNotification(`Zamieniono "${entry1.recipe.name}" (${day1Name}) ↔ "${entry2.recipe.name}" (${day2Name})`, 'success');
+
+                // Reload the selected plan
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error swapping meal entries:', error);
+                this.showNotification('Błąd zamiany posiłków: ' + error.message, 'error');
+            }
+        },
+
+        async generateMissingImagesForPlan() {
+            if (!this.selectedPlan.id) return;
+
+            try {
+                // Collect all unique recipes from the plan that don't have images
+                const recipesWithoutImages = new Set();
+
+                for (const day of this.selectedPlan.days) {
+                    if (day.entries) {
+                        for (const entry of day.entries) {
+                            if (entry.recipe && !entry.recipe.imageUrl) {
+                                recipesWithoutImages.add(entry.recipe.id);
+                            }
+                        }
+                    }
+                }
+
+                if (recipesWithoutImages.size === 0) {
+                    this.showNotification('Wszystkie przepisy w planie mają już zdjęcia!', 'success');
+                    return;
+                }
+
+                const count = recipesWithoutImages.size;
+                this.showNotification(`Generowanie zdjęć dla ${count} przepisów...`, 'info');
+
+                // Generate images for all recipes without images
+                let successCount = 0;
+                let failCount = 0;
+
+                for (const recipeId of recipesWithoutImages) {
+                    try {
+                        const response = await fetch(`/api/images/generate/${recipeId}`, {
+                            method: 'POST'
+                        });
+
+                        if (response.ok) {
+                            successCount++;
+                        } else {
+                            failCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Failed to generate image for recipe ${recipeId}:`, error);
+                        failCount++;
+                    }
+                }
+
+                if (successCount > 0) {
+                    this.showNotification(`Wygenerowano ${successCount} zdjęć ${failCount > 0 ? `(${failCount} błędów)` : ''}`, 'success');
+                    // Reload recipes and plan to show new images
+                    await this.loadRecipes();
+                    await this.selectMealPlan(this.selectedPlan.id);
+                } else {
+                    this.showNotification('Nie udało się wygenerować żadnych zdjęć', 'error');
+                }
+            } catch (error) {
+                console.error('Error generating missing images:', error);
+                this.showNotification('Błąd generowania zdjęć: ' + error.message, 'error');
             }
         },
 
@@ -1927,15 +2231,49 @@ function appData() {
         },
 
         async scaleRecipes() {
+            console.log('🔍 scaleRecipes() called - NEW VERSION with resume modal');
+
             if (!this.selectedPlan?.persons || this.selectedPlan.persons.length === 0) {
                 this.showNotification('Brak osób w planie - dodaj osoby aby przeskalować przepisy', 'error');
                 return;
             }
 
+            // First, check scaling status to see if we need to show the resume modal
+            try {
+                console.log('📞 Calling scaling-status endpoint for plan:', this.selectedPlan.id);
+                const statusResponse = await fetch(`/api/mealplans/${this.selectedPlan.id}/scaling-status`);
+                if (!statusResponse.ok) {
+                    throw new Error('Failed to check scaling status');
+                }
+
+                const status = await statusResponse.json();
+                this.scalingStatus = status;
+                console.log('✅ Status received:', status);
+
+                // If there are already scaled recipes, show the modal to let user choose
+                if (status.scaledCount > 0) {
+                    console.log('🎭 Showing resume modal - found', status.scaledCount, 'scaled recipes');
+                    this.showScalingResumeModal = true;
+                    return;
+                }
+
+                // No scaled recipes yet, proceed with full scaling
+                console.log('▶️ No scaled recipes found, proceeding with full scaling');
+                await this.performScaling(true);
+            } catch (error) {
+                console.error('Error checking scaling status:', error);
+                // If status check fails, proceed with normal scaling anyway
+                await this.performScaling(true);
+            }
+        },
+
+        async performScaling(resetAll = true) {
             this.isScalingRecipes = true;
+            this.showScalingResumeModal = false;
 
             try {
-                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/scale-recipes`, {
+                const url = `/api/mealplans/${this.selectedPlan.id}/scale-recipes?resetAll=${resetAll}`;
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -1968,6 +2306,42 @@ function appData() {
                 this.showNotification('Błąd skalowania: ' + error.message, 'error');
             } finally {
                 this.isScalingRecipes = false;
+            }
+        },
+
+        async deleteScaling() {
+            if (!this.selectedPlan?.id) {
+                this.showNotification('Nie wybrano planu', 'error');
+                return;
+            }
+
+            if (!confirm('Czy na pewno chcesz usunąć wszystkie przeskalowane przepisy? Ta operacja jest nieodwracalna.')) {
+                return;
+            }
+
+            this.isDeletingScaling = true;
+
+            try {
+                const response = await fetch(`/api/mealplans/${this.selectedPlan.id}/scaled-recipes`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to delete scaled recipes');
+                }
+
+                const result = await response.json();
+
+                this.showNotification(`Usunięto ${result.deletedCount} przeskalowanych przepisów`, 'success');
+
+                // Reload the plan to refresh the view
+                await this.selectMealPlan(this.selectedPlan.id);
+            } catch (error) {
+                console.error('Error deleting scaled recipes:', error);
+                this.showNotification('Błąd usuwania skalowania: ' + error.message, 'error');
+            } finally {
+                this.isDeletingScaling = false;
             }
         },
 
@@ -2042,7 +2416,8 @@ function appData() {
                 carbohydrates: recipe.carbohydrates || 0,
                 fat: recipe.fat || 0,
                 mealType: recipe.mealType,
-                servings: recipe.servings || null
+                servings: recipe.servings || null,
+                doNotScale: recipe.doNotScale || false
             };
             this.showEditRecipeModal = true;
         },
@@ -2061,7 +2436,7 @@ function appData() {
                 this.showEditRecipeModal = false;
 
                 // Reload the current plan to show updated recipe
-                if (this.selectedPlan) {
+                if (this.selectedPlan.id) {
                     await this.selectMealPlan(this.selectedPlan.id);
                 }
 
@@ -2181,7 +2556,7 @@ function appData() {
         },
 
         printMealPlanTable() {
-            if (!this.selectedPlan) {
+            if (!this.selectedPlan.id) {
                 this.showNotification('Brak wybranego planu', 'error');
                 return;
             }
@@ -2195,7 +2570,7 @@ function appData() {
         },
 
         printMealPlanFull() {
-            if (!this.selectedPlan) {
+            if (!this.selectedPlan.id) {
                 this.showNotification('Brak wybranego planu', 'error');
                 return;
             }
@@ -2209,7 +2584,7 @@ function appData() {
         },
 
         printShoppingList() {
-            if (!this.selectedPlan) {
+            if (!this.selectedPlan.id) {
                 this.showNotification('Brak wybranego planu', 'error');
                 return;
             }
@@ -2236,7 +2611,7 @@ function appData() {
         },
 
         printMealPlanForPerson(personId) {
-            if (!this.selectedPlan) {
+            if (!this.selectedPlan.id) {
                 this.showNotification('Brak wybranego planu', 'error');
                 return;
             }

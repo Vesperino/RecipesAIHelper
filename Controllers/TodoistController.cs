@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using RecipesAIHelper.Data;
+using RecipesAIHelper.Models;
 using RecipesAIHelper.Services;
 
 namespace RecipesAIHelper.Controllers;
