@@ -1,4 +1,4 @@
-# Recipe AI Helper
+<img width="1757" height="847" alt="image" src="https://github.com/user-attachments/assets/f5bb4777-e3f5-4855-a3a7-cc3be571dda2" />
 
 Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarnymi z wykorzystaniem AI (OpenAI GPT i Google Gemini). System oferuje pełną automatyzację od ekstrakcji przepisów z PDF, przez tworzenie jadłospisów, aż po generowanie list zakupowych i inteligentne skalowanie porcji.
 
@@ -13,6 +13,7 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - **Retry mechanizm**: Automatyczne ponowne próby z eksponencjalnym backoffem (Polly)
 
 ### 📄 Ekstrakcja przepisów z PDF i obrazów
+<img width="1407" height="1031" alt="image" src="https://github.com/user-attachments/assets/25d3a839-2adb-48fa-9fa1-44493a3ebf78" />
 
 #### Dwie ścieżki przetwarzania:
 1. **Direct PDF upload** (Gemini) - niższe koszty, szybsze przetwarzanie
@@ -33,12 +34,19 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 #### Mechanizmy ochrony jakości:
 
 **1. Sprawdzanie duplikatów:**
+
+<img width="604" height="168" alt="image" src="https://github.com/user-attachments/assets/de3f9405-f73e-4ae4-aaf2-632cd63a567f" />
+<img width="429" height="267" alt="image" src="https://github.com/user-attachments/assets/5da37a16-2b97-4f1b-a8d4-4c3b594f71cc" />
+
 - **Exact match**: Case-insensitive porównanie nazw w bazie
 - **Fuzzy matching**: Levenshtein distance similarity >80%
 - **AI context**: Ostatnie 10 przepisów przekazywane do AI jako kontekst
 - **Per-file tracking**: Lista przetworzonych nazw zapobiega duplikatom w chunkach
 
 **2. Multi-variant nutrition data:**
+<img width="1126" height="996" alt="image" src="https://github.com/user-attachments/assets/a97d8db5-8f61-4e38-be10-d9b7b7fff710" />
+<img width="905" height="821" alt="image" src="https://github.com/user-attachments/assets/6f6e4510-4c88-4357-90d6-72d83ed8f5e8" />
+
 - **Automatyczna ekstrakcja**: AI wyciąga WSZYSTKIE rzędy z tabel wartości odżywczych
 - **Przykład wariantów**: "całość" (1200 kcal), "porcja" (300 kcal), "1/2 porcji" (150 kcal)
 - **Storage**: Przechowywane jako JSON array w kolumnie `NutritionVariantsJson`
@@ -46,6 +54,9 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - **Servings tracking**: Opcjonalne pole "Liczba porcji: X"
 
 **3. Upload przez UI:**
+<img width="1351" height="906" alt="image" src="https://github.com/user-attachments/assets/9ee0e81e-ad01-49f1-8dec-937171e6cb30" />
+
+
 - **Folder source**: Wybór plików z lokalnego folderu (PDF)
 - **Manual upload**: Drag & drop lub wybór plików z dysku (PDF, JPG, PNG)
 - **Status tracking**: Informacja o już przetworzonych plikach
@@ -59,8 +70,11 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - Kontynuacja przetwarzania pomimo błędów pojedynczych plików
 
 ### 🖼️ Generowanie obrazów AI
+<img width="465" height="400" alt="image" src="https://github.com/user-attachments/assets/34cefaeb-829f-4fd4-bfc3-dd39c764273d" />
 
 #### Wsparcie dla wielu providerów:
+<img width="1378" height="614" alt="image" src="https://github.com/user-attachments/assets/f6e5abcc-75de-4101-9846-cc8508cf9dbd" />
+
 - **OpenAI**: DALL-E 2, DALL-E 3, GPT Image 1, GPT Image 1 Mini
   - Format: PNG, rozdzielczość: 1024x1024
   - Parametr `quality` tylko dla DALL-E 3+ (automatyczna kompatybilność)
@@ -77,6 +91,7 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - **Konfiguracja przez UI**: Pełne zarządzanie w zakładce ⚙️ Ustawienia
 
 ### 📊 Baza przepisów
+<img width="1757" height="847" alt="image" src="https://github.com/user-attachments/assets/af4cf940-ce29-459e-a619-7088aed51435" />
 
 #### Funkcje przeglądania:
 - **Wyszukiwanie tekstowe**: Szybkie wyszukiwanie po nazwie, opisie, typie posiłku
@@ -95,6 +110,8 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - **Quick reset**: Przycisk "Wyczyść wszystkie" do resetowania filtrów i sortowania
 
 #### Zarządzanie przepisami:
+<img width="717" height="864" alt="image" src="https://github.com/user-attachments/assets/08a4ee2d-7803-42c1-b9f9-cecf51ea0ae4" />
+
 - **Edycja przepisów**: Modyfikacja wartości odżywczych, składników, instrukcji
 - **Nutrition variants**: Wyświetlanie i edycja wielu wariantów wartości odżywczych
 - **Usuwanie przepisów**: Kasowanie niepotrzebnych pozycji
@@ -109,6 +126,18 @@ Kompleksowa aplikacja .NET 9 do automatycznego zarządzania przepisami kulinarny
 - **Nutrition variants**: JSON array z wieloma wariantami wartości odżywczych
 
 ### 🍽️ Planowanie posiłków (Meal Planner)
+<img width="1370" height="839" alt="image" src="https://github.com/user-attachments/assets/07f66132-1f21-48ce-9f22-e5222f3f3b7f" />
+<img width="640" height="606" alt="image" src="https://github.com/user-attachments/assets/c482e19f-f6a8-4ee3-b1f9-62e0bc094819" />
+<img width="1216" height="835" alt="image" src="https://github.com/user-attachments/assets/13cff0ea-f50a-4d25-a02e-a6cad3328bb1" />
+<img width="383" height="588" alt="image" src="https://github.com/user-attachments/assets/7117ec0d-b800-49e0-b31e-9dd925d0a29d" />
+<img width="650" height="852" alt="image" src="https://github.com/user-attachments/assets/1512dce8-94e2-45f3-9066-a07cda733a6b" />
+<img width="1195" height="886" alt="image" src="https://github.com/user-attachments/assets/3c288e63-f998-4fab-a48c-abf4e5a50f0c" />
+<img width="827" height="271" alt="image" src="https://github.com/user-attachments/assets/c6c47c2f-8f69-4be4-94df-0a81dab1c332" />
+<img width="1307" height="786" alt="image" src="https://github.com/user-attachments/assets/044e3ed5-ef34-4962-bbf7-0521c6b846da" />
+<img width="1902" height="369" alt="image" src="https://github.com/user-attachments/assets/532cb2bc-2b69-43b1-aac2-15bc61b3c6e0" />
+<img width="1205" height="842" alt="image" src="https://github.com/user-attachments/assets/31943e33-56c3-432e-8609-fb544dfbf9c6" />
+<img width="1915" height="679" alt="image" src="https://github.com/user-attachments/assets/b8fa652e-2961-4302-a0d0-d51800293c98" />
+
 
 #### Tworzenie jadłospisów:
 - **Planer tygodniowy**: Tworzenie planów na dowolną liczbę dni (1-31)
