@@ -34,24 +34,40 @@ public class OpenAIShoppingListService : IShoppingListService
     /// </summary>
     public async Task<ShoppingListResponse?> GenerateShoppingListAsync(List<Recipe> recipes)
     {
+        var debugLog = new ShoppingListDebugLog
+        {
+            Timestamp = DateTime.Now,
+            Provider = "OpenAI",
+            ModelName = _modelName,
+            RecipeCount = recipes.Count
+        };
+
         try
         {
             Console.WriteLine($"🛒 Generowanie listy zakupowej z {recipes.Count} przepisów...");
 
-            var prompt = BuildShoppingListPrompt(recipes);
+            var systemMessage = "Jesteś asystentem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu.";
+            var userPrompt = BuildShoppingListPrompt(recipes);
+
+            // Save full prompt with system message
+            debugLog.PromptSent = $"[SYSTEM MESSAGE]\n{systemMessage}\n\n[USER PROMPT]\n{userPrompt}";
 
             var messages = new List<ChatMessage>
             {
-                new SystemChatMessage("Jesteś ekspertem do tworzenia list zakupowych. Odpowiadaj TYLKO w formacie JSON, bez dodatkowego tekstu."),
-                new UserChatMessage(prompt)
+                new SystemChatMessage(systemMessage),
+                new UserChatMessage(userPrompt)
             };
 
             var chatCompletion = await _chatClient.CompleteChatAsync(messages);
             var responseText = chatCompletion.Value.Content[0].Text.Trim();
+            debugLog.ResponseReceived = responseText;
 
             if (string.IsNullOrEmpty(responseText))
             {
                 Console.WriteLine("❌ Pusta odpowiedź od AI");
+                debugLog.Success = false;
+                debugLog.ErrorMessage = "Pusta odpowiedź od AI";
+                SaveDebugLog(debugLog);
                 return null;
             }
 
@@ -61,11 +77,6 @@ public class OpenAIShoppingListService : IShoppingListService
                 .Replace("```", "")
                 .Trim();
 
-            // Debug: Save response
-            var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "shopping_list_debug.json");
-            File.WriteAllText(debugPath, responseText);
-            Console.WriteLine($"🔍 DEBUG: Zapisano odpowiedź do: {debugPath}");
-
             var shoppingList = JsonSerializer.Deserialize<ShoppingListResponse>(responseText, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
@@ -74,8 +85,15 @@ public class OpenAIShoppingListService : IShoppingListService
             if (shoppingList?.Items == null || shoppingList.Items.Count == 0)
             {
                 Console.WriteLine("❌ Brak elementów na liście zakupowej");
+                debugLog.Success = false;
+                debugLog.ErrorMessage = "Brak elementów na liście zakupowej";
+                SaveDebugLog(debugLog);
                 return null;
             }
+
+            debugLog.Success = true;
+            debugLog.ItemsGenerated = shoppingList.Items.Count;
+            SaveDebugLog(debugLog);
 
             Console.WriteLine($"✅ Wygenerowano listę zakupową: {shoppingList.Items.Count} pozycji");
             return shoppingList;
@@ -84,7 +102,29 @@ public class OpenAIShoppingListService : IShoppingListService
         {
             Console.WriteLine($"❌ Błąd generowania listy zakupowej: {ex.GetType().Name}");
             Console.WriteLine($"   Komunikat: {ex.Message}");
+            debugLog.Success = false;
+            debugLog.ErrorMessage = $"{ex.GetType().Name}: {ex.Message}";
+            SaveDebugLog(debugLog);
             return null;
+        }
+    }
+
+    private void SaveDebugLog(ShoppingListDebugLog log)
+    {
+        try
+        {
+            var debugPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "shopping_list_debug.json");
+            var json = JsonSerializer.Serialize(log, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+            File.WriteAllText(debugPath, json);
+            Console.WriteLine($"🔍 DEBUG: Zapisano log do: {debugPath}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Nie udało się zapisać debug logu: {ex.Message}");
         }
     }
 
@@ -92,8 +132,6 @@ public class OpenAIShoppingListService : IShoppingListService
     {
         var promptBuilder = new StringBuilder();
 
-        promptBuilder.AppendLine("Jesteś asystentem do tworzenia list zakupowych.");
-        promptBuilder.AppendLine();
         promptBuilder.AppendLine("**ZADANIE:**");
         promptBuilder.AppendLine("Na podstawie poniższych przepisów wygeneruj zagregowaną listę zakupów.");
         promptBuilder.AppendLine();
